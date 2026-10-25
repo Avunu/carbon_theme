@@ -57,10 +57,6 @@ It replaces Frappe's own stylesheets rather than adding a layer on top of them, 
 
 ## Installation
 
-On Frappe Cloud, install Carbon Theme for Frappe from the [Frappe marketplace](https://cloud.frappe.io/marketplace/apps/carbon_theme).
-
-On a bench of your own:
-
 ```bash
 bench get-app https://github.com/Avunu/carbon_theme --branch version-16
 bench --site <site> install-app carbon_theme
