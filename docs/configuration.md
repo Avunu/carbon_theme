@@ -36,6 +36,7 @@ A configured header colour also reaches the website's navbar and footer and the 
 Some colours keep Carbon's value whatever you set:
 
 - Status colours. Draft and Submitted pills and information callouts stay blue, because Carbon keeps blue as the informational colour.
+- Danger buttons. They stay red with white text whatever the brand colour.
 - In dark mode, the focus ring, interactive icons and the tertiary button stay white, as Carbon's g100 theme draws them.
 - E-mail. Outgoing e-mail is inlined without CSS variables, so it gets Carbon's default colours.
 - On website pages, utility classes compiled by Bootstrap, such as `.text-primary`. They keep the **Website Theme**'s colour, so set the primary colour there as well if those matter.
@@ -58,10 +59,12 @@ bench --site <SITE_NAME> set-config carbon_dev_indicator 0
 
 ## Roles and permissions
 
-The theme checks two roles:
+The theme checks one role, **System Manager**:
 
-- **System Manager** can open and change **Carbon Settings**. In the AI assistant, a System Manager also sees the set-up steps when flow is not configured yet: see [Use the AI assistant](ai-assistant.md#before-the-assistant-is-set-up).
-- Everything else follows Frappe's own permissions. The header shows what the sidebar shows you, the tables show what the list and report show you, and the assistant can do only what flow allows you.
+- Only a System Manager can open and change **Carbon Settings**.
+- In the AI assistant, a System Manager also sees the set-up steps when flow is not configured yet: see [Use the AI assistant](ai-assistant.md#before-the-assistant-is-set-up).
+
+Everything else follows Frappe's own permissions. The header shows what the sidebar shows you, the tables show what the list and report show you, and the assistant can do only what flow allows you.
 
 ## What the app adds to your site
 
@@ -77,11 +80,11 @@ The app adds no custom fields or property setters, overrides no doctype class, r
 
 ### Stylesheets
 
-| What                                                                            | How                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `desk.bundle.css`, `website.bundle.css`, `login.bundle.css`, `email.bundle.css` | The theme's own builds of these four stylesheets replace Frappe's in `sites/assets/assets.json`, for the whole bench. See [How it works](development/architecture.md).                    |
-| `/carbon-brand.css`                                                             | A per-site stylesheet with the Carbon Settings colours and the development marker, served by a `page_renderer` and linked on desk, website and login pages. Empty until something is set. |
-| `carbon_frappe_ui.bundle.css`                                                   | The Carbon tokens for frappe-ui apps, added with `/carbon-brand.css` to every page that loads a Vite module entry, by an `after_request` hook.                                            |
+| What                                                                            | How                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `desk.bundle.css`, `website.bundle.css`, `login.bundle.css`, `email.bundle.css` | The theme's own builds of these four stylesheets replace Frappe's in `sites/assets/assets.json`, for the whole bench. See [How it works](development/architecture.md).                                                      |
+| `/carbon-brand.css`                                                             | A per-site stylesheet with the Carbon Settings colours and the development marker, served by a `page_renderer` and linked on desk, website and login pages. Holds only a comment until a colour is set or the marker is on. |
+| `carbon_frappe_ui.bundle.css`                                                   | The Carbon tokens for frappe-ui apps, added with `/carbon-brand.css` to every page that loads a Vite module entry, by an `after_request` hook.                                                                              |
 
 ### Scripts on every desk page
 

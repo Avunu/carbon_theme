@@ -34,7 +34,7 @@ When a table has more rows than fit on one page, the page controls sit below the
 
 ### Select rows
 
-Tick the check boxes at the start of the rows. A bar slides over the toolbar with the number selected ("1 item selected") and Frappe's actions for the selection, such as **Delete** and **Duplicate rows**. **Cancel** clears the selection.
+Tick the check boxes at the start of the rows. A bar slides over the toolbar with the number selected ("1 item selected") and Frappe's actions for the selection, labelled with the count as Frappe labels them: **Delete row** or **Delete 3 rows**, **Duplicate row** or **Duplicate 3 rows**, and **Edit row** where the child doctype allows bulk editing. When you tick the header check box on a table with more rows than its page shows, **Delete all 40 rows** is added. Each shows only when Frappe would show it. **Cancel** clears the selection.
 
 ### Open a row
 

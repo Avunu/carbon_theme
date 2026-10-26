@@ -14,9 +14,9 @@ Without flow, or on a site in read-only mode, there is no button. On a phone-siz
 
 - Click **AI assistant** in the header, or press Ctrl+I.
 - The panel docks to the right, 360px wide. **Expand** widens it to the whole window and **Collapse** brings it back. In a narrow window it always takes the full width.
-- To close it, click **AI assistant** again, press Ctrl+I, or use **Close** in the panel's header. The panel remembers whether it was open and expanded, and which conversation you had open, when you reload.
+- To close it, click **AI assistant** again, press Ctrl+I, use **Close** in the panel's header, or press Escape. Escape inside a message, an approval card, the feedback box or the conversation history acts there first: in a message it returns you to the prompt, and the panel stays open. The panel remembers whether it was open and expanded, and which conversation you had open, when you reload.
 
-The first time you open it, the panel loads its code, which takes a moment. If that fails, it shows "The AI assistant could not be loaded" with **Retry**, **Reload the page** and **Open the Flow panel**. See [Troubleshooting](troubleshooting.md#the-ai-assistant).
+The first time you open it, the panel loads its code, which takes a moment. If that fails, it shows "The AI assistant could not be loaded" with **Retry**. **Reload the page** is added when part of the code failed to load, and **Open the Flow panel** when flow's own panel is available. See [Troubleshooting](troubleshooting.md#the-ai-assistant).
 
 ## Before the assistant is set up
 

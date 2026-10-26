@@ -26,7 +26,7 @@ bench build
 
 `version-16` is the release branch: it always holds the latest release. To follow unreleased changes, use `--branch develop` instead.
 
-Run a full `bench build`, not `bench build --app carbon_theme` or `bench build --apps frappe`. The theme's stylesheets carry the same names as Frappe's, and the build that runs last decides which ones the site serves. After compiling, the build runs the app's own `yarn build`, which points the names back at the theme's files (`scripts/patch-assets.ts`), checks the theme against the installed Frappe and builds the AI assistant's bundle.
+Run a full `bench build`, not a partial one such as `bench build --apps frappe`. The theme's stylesheets carry the same names as Frappe's, and the build that runs last decides which ones the site serves. After compiling, the build runs the app's own `yarn build`, which points the names back at the theme's files (`scripts/patch-assets.ts`), checks the theme against the installed Frappe and builds the AI assistant's bundle.
 
 `bench get-app` installs the npm dependencies. If the first build stops on a missing import, run `bench setup requirements` and build again.
 

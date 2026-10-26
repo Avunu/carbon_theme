@@ -24,7 +24,7 @@ A Carbon header across the top of the desk shows the current module's links and 
 
 ### One table engine for every table
 
-Child tables, the List view and the Report and Query views are drawn by one Carbon data table. Columns can be resized, reordered and sorted, child-table rows open into their form in place, and the Report view supports spreadsheet-style selection, copy and paste. See [Work with tables](tables.md).
+Child tables, the List view and the Report and Query views are drawn by one Carbon data table. Columns can be resized and sorted, child-table rows open into their form in place, and the Report view supports spreadsheet-style selection, copy and paste. See [Work with tables](tables.md).
 
 ![An editable Sales Invoice's Items child table drawn by the theme's table engine, with the Carbon table toolbar and Add row, and the first row expanded into its form in place](screenshots/child-table-light.webp)
 
