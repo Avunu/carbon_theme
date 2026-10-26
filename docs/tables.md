@@ -1,30 +1,80 @@
-# Tables
+---
+title: Work with tables
+description: Resize, sort and select in Carbon tables, open child-table rows in place, and copy and paste in the Report view.
+nav_title: Tables
+order: 4
+updated: 2026-10-26
+---
 
-`carbon_tables.bundle.js` replaces frappe's three unrelated table renderers — a Bootstrap 12-column grid, hand-built flex-div list rows, and the separate **frappe-datatable** library — with a single engine built on [TanStack Table](https://tanstack.com/table) v9 and rendered as Carbon's light-DOM `cds--data-table`.
+Child tables in forms, the List view and the Report and Query views are all drawn by one Carbon data table. They behave as Frappe's tables did, with the same data, filters and permissions, and add a few things on top. This page shows how to use them.
 
-**What it unlocks**
+![The Sales Invoice Report view on the theme's table engine, with sortable, resizable Carbon column headers](screenshots/report-view-light.webp)
 
-- **Child-table grids past 10 columns, with widths the engine owns.** Through frappe 16.33 a grid sized its fields as Bootstrap spans and stopped redistributing once the total passed 10, then latched `.column-limit-reached` and swapped in a hand-rolled horizontal-scroll hack. frappe 16.50 dropped the spans and sizes every column in pixels itself (`Grid#get_column_width`: a saved `df.width`, else a legacy `columns` span, else a fieldtype default, clamped to 60-600; `grid.js:1526-1538`), and the grid inherits that model unchanged. What the engine adds is who lays the columns out: the widths seed TanStack's column-sizing feature and live in a `<colgroup>`, so the table scrolls horizontally like any table and a column's cell is exactly as wide as its header. A header drag is the engine's (`onColumnResize`, once per drag, the settled width in whole px), handed to frappe's own `save_column_width`, which writes the same per-user `GridView` setting Configure Columns does; the last data column takes any spare width (frappe's `.grid-data-last`) and every other column keeps exactly the width it was given. There is no cap.
-- **Virtualized report rows.** A 742-row report keeps ~32 rows in the DOM; the engine measured 50 000 rows rendering in ~400 ms.
-- **Column resizing, reordering, pinning and Carbon sort headers** on every surface, plus a spreadsheet-style cell-selection primitive (`cellSelectionFeature`) that frappe-datatable had and Carbon's own Datagrid does not, and a header menu on Report and Query views (Sort Ascending / Descending, Reset sorting, Remove column, Freeze, and Report View's Add Column) as a Carbon overflow menu.
-- **One row-size vocabulary.** Carbon has five row sizes and one rule — the header row matches the body row — so an arbitrary `cellHeight` (frappe asks for 33 and 35) snaps to the nearest and the header follows.
-- **Child-table rows that expand into their form.** frappe's row form is a centered pseudo-modal — `GridRowForm` renders inline but `.grid-row-open .form-in-grid` is `position: fixed; top: 5%; left: 50%; width: 80%` over a `frappe.dom.freeze()` backdrop. It is now Carbon's expandable row instead: a chevron in a leading `cds--table-expand` gutter unfolds a `cds--child-row-inner-container` beneath the row, which stays visible above it. The panel is the same `GridRowForm` and the same `frappe.ui.form.Layout`, so every field, tab, `depends_on` and `get_query` behaves as before. One row opens at a time, matching frappe's own `toggle_view()` accordion and the single-slot globals (`cur_frm.cur_grid`, `grid.open_grid_row`, `$('.grid-row-open')`) that the rest of the desk reads. Because the table scrolls horizontally, the panel is `position: sticky` and sized to the scroll viewport, so it stays where the reader is while the columns move behind it. A `⋮` overflow menu in a trailing gutter carries the row actions (Insert Above/Below, Duplicate, Move, Delete) plus **Open in dialog**, which restores the old centered form for child doctypes too tall to read inside a row.
-- **A Carbon table toolbar instead of a footer button strip.** frappe's `.grid-footer` becomes `cds--table-toolbar`: Add row as the primary action, Add multiple beside it, Download / Upload / Configure Columns as `cds--toolbar-action` icons, and a magnifier that toggles frappe's per-column filter row (upstream that row only appears past `rows_threshold_for_grid_search`, 20). Selecting rows raises Carbon's `cds--batch-actions` bar over the toolbar with the selection count and Delete / Duplicate / Cancel. Pagination moves below the table as `cds--pagination`. Every button is frappe's original element **moved**, never rebuilt — the `data-action` handlers `bind_actions_with_object` wired onto them, the cached `grid.*_button` handles, and the `.hidden` / `.d-none` toggles in `setup_toolbar()` all keep working.
+## Columns
 
-**What does not change**
+- **Resize a column.** Drag the right edge of its header. In a child table and in the List view the new width is saved for you, as Frappe saves it: a child table's width is the same setting **Configure Columns** writes.
+- **Sort.** In the Report and Query views, click a column header's sort button; the header shows the sort direction. In the List view, click a column's label, as in Frappe.
+- **Column menu.** In the Report and Query views, each header has a menu with **Sort Ascending**, **Sort Descending**, **Reset sorting**, **Remove column** and **Freeze** (or **Unfreeze**). The Report view also offers **Add Column** there.
+- **Wide tables.** A table with more columns than fit scrolls sideways. A child table has no limit on the number of columns.
 
-Compatibility is the point. Nothing here alters a public frappe API:
+## Child tables
 
-- **Grid** — `CarbonGrid extends Grid` and `CarbonGridRow extends GridRow`, overriding only the methods that produce or size DOM, plus `show_form()` / `hide_form()` for the expandable row. `refresh()`, `add_new_row()`, `update_docfield_property()`, `get_field()`, `toggle_view()`, `insert()`, `move()`, `remove()`, bulk edit, CSV upload, Sortable row dragging, the Configure Columns dialog and `GridRowForm` itself are all frappe's own implementations running against new DOM. Cells are still the `div.grid-static-col` elements `GridRow.make_column()` builds, complete with their `.static-area` / `.field-area` pair and their mounted controls — the engine positions them, it never rebuilds them.
-- **Report and Query views** — `window.DataTable` and `frappe.DataTable` become a frappe-datatable-compatible facade. The option surface, the `getEditor` protocol, `events`, `hooks.columnTotal`, and the `datamanager` / `rowmanager` / `columnmanager` / `cellmanager` / `bodyRenderer` / `style` sub-managers are reproduced against measured call sites — including `style.setStyle()`, which 13 places across frappe, ERPNext and app reports use to paint individual cells.
-- **Report-view editing** — frappe-datatable's grid interaction is reproduced (focus ring, arrows, shift-range, ctrl+C as TSV, Enter to edit) and extended: **ctrl+V** pastes a TSV block over the selection (a single value fills a range) with each value coerced to the target fieldtype or refused — numbers in the user's number format, dates in the system or user format, Selects by option, Links validated by the server — and every write goes through the report view's own `getEditor().setValue`, so the server, `report_view.data` and the charts stay in step and a rejected value reverts. **Space** toggles a focused Check cell in place. A multi-line editor (Small Text / Text) is a framed popover that grows below the cell; Enter is a newline there and ctrl+Enter commits.
-- **List view** — `get_column_html()` and `get_meta_html()` are reused verbatim as the cell renderers, so `listview_settings` (`formatters`, `get_indicator`, `button`, `dropdown_button`, `hide_name_column`) behaves exactly as before. What frappe's flex layout did for free, the adapter does itself: a column with a saved width (`df.width`, a saved layout) gets it, and every other column is sized from its content (`tables/widths.ts`; v16.50 dropped frappe's own estimator, because CSS flex shared the space out); a header drag is persisted through `save_column_width`, as frappe's own handle does. The selection stays frappe's `checked_docnames` Set, pruned against the new data on every render, and repainted onto rows the engine recycles. `FileView`'s list mode has no column model and keeps frappe's own rows.
-- **The legacy DOM contract is re-emitted alongside Carbon's.** Every row and cell carries its `dt-*`, `grid-*` or `list-row-*` class as well, so existing app CSS, jQuery and `setStyle` selectors keep resolving. The mapping lives in one file per adapter (`tables/*/classes.js`).
+![An editable Sales Invoice's Items child table drawn by the theme's table engine, with the Carbon table toolbar and Add row, and the first row expanded into its form in place](screenshots/child-table-light.webp)
 
-**Known limits**
+### The toolbar
 
-- `frappe/data_import/import_preview.js` and `system_console.js` hold module-local `frappe-datatable` imports that a global reassignment cannot reach. They keep using the stock library, which remains installed and themed.
-- The child-table panel keeps `frappe.dom.freeze_count` balanced by hand: `GridRow.show_form()` freezes and `hide_form()` unfreezes unconditionally, so inline mode counterweights both rather than skipping them. If frappe ever makes that pairing conditional, the guard in `scripts/markup-manifest.ts` will catch it.
-- Column pinning is declared but inert on child tables. The engine builds its `columnPinning` state once, in the constructor, from the `columns` it was handed — and the Grid constructs the engine with an empty column list, filling it later through `setColumns()`, which does not revisit pinning. So `df.sticky` and the `_expand` / `_check` / `_index` gutters do not actually freeze on a horizontally scrolled child table. The List and Report adapters pass their columns up front and are unaffected. The expanded panel does not rely on this — it sticks on its own.
-- The list scrolls inside the engine (`.result-container` is a bounded box and the engine's scroller fills it), so its header and its pinned Subject and meta columns stay put, and rows are windowed at frappe's own `virtualization_threshold` (2000, reachable at the 2500 page size) with the selection repainted as the window moves. frappe's lazy `list_view_virtualization` bundle is never used, only preloaded by `refresh()` and the page-size buttons (one small request). On a phone `set_result_height` leaves the box unsized and the page scrolls, so nothing is windowed there.
-- `frappe.ui.EmbeddedList` (`ui/embedded_list.js`, which DocType Settings and Workspace use) is a plain `<table>` of its own and is not rendered by the engine.
+A Carbon toolbar sits above each child table. It holds the same buttons Frappe puts under the table, so each one shows when Frappe would show it:
+
+- **Add row** and **Add multiple**.
+- **Download** and **Upload**, as icons, where the table allows them.
+- **Filter rows**, a magnifier that shows or hides Frappe's filter row under the column headers.
+- **Configure Columns**, as an icon.
+
+When a table has more rows than fit on one page, the page controls sit below the table.
+
+### Select rows
+
+Tick the check boxes at the start of the rows. A bar slides over the toolbar with the number selected ("1 item selected") and Frappe's actions for the selection, such as **Delete** and **Duplicate rows**. **Cancel** clears the selection.
+
+### Open a row
+
+Click the chevron at the start of a row to open its form under the row, in place. The fields, tabs and rules are the row's normal form; the row stays visible above it, and the form stays in view while you scroll the table sideways. Click the chevron again to close it. One row is open at a time.
+
+The **Row actions** menu at the end of each row offers:
+
+| Action                                            | Shown when                                                                 |
+| ------------------------------------------------- | -------------------------------------------------------------------------- |
+| **Open in dialog**                                | Always. Opens the row's form in a dialog instead, which suits a long form. |
+| **Insert Above**, **Insert Below**, **Duplicate** | The table is editable and allows new rows.                                 |
+| **Move**                                          | The table is editable.                                                     |
+| **Delete**                                        | The table is editable and allows deleting rows.                            |
+
+## The List view
+
+The List view keeps its columns, indicators, buttons and bulk actions. Columns without a saved width are sized to their content. The column headers stay in place while you scroll the list. On a page of more than 2000 rows (the 2500 page size) only the rows near the screen are drawn.
+
+## The Report view
+
+The Report view works like a spreadsheet:
+
+| Keys                     | Does                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| Click, arrow keys        | Moves the focus between cells                                                       |
+| Shift and click or arrow | Selects a range of cells                                                            |
+| Ctrl+C                   | Copies the selected cells as tab-separated text                                     |
+| Ctrl+V                   | Pastes tab-separated text over the selection. A single value fills the whole range. |
+| Enter                    | Edits the focused cell                                                              |
+| Space                    | Ticks or unticks a focused check box cell                                           |
+| Ctrl+Enter               | Saves a multi-line text cell (Enter adds a new line there)                          |
+
+Pasted values are converted to each column's type: numbers in your number format, dates in your date format, Select values by option and Link values checked by the server. A value that cannot be converted, or that the server refuses, is not written and the cell keeps its old value. Each pasted value is saved through the same editor as typing it in, so the totals and charts stay in step.
+
+Long reports draw only the rows near the screen, so a report of thousands of rows scrolls without delay.
+
+## What is not changed
+
+- The Data Import preview and the System Console keep Frappe's own table, in Carbon colours.
+- Tables in DocType settings and Workspace settings (Frappe's embedded lists) keep their plain table.
+- Frozen columns do not stay in place when a child table scrolls sideways. See [Limitations](troubleshooting.md#limitations).
+
+Reports and scripts written for Frappe's tables keep working: the engine keeps Frappe's JavaScript interfaces and the class names they select on. Developers can find the details in [How it works](development/architecture.md#the-table-engine).

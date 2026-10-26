@@ -1,38 +1,60 @@
-# Carbon Theme for Frappe
+---
+title: Carbon Theme for Frappe
+description: IBM Carbon Design System theme for the Frappe desk, website, login and email, with a Carbon header, table engine and AI assistant panel.
+nav_title: Overview
+order: 0
+updated: 2026-10-26
+---
 
-IBM Carbon Design System theme for the Frappe desk, website, login and email
+Frappe and ERPNext have their own look, and it does not match the Carbon Design System that many organisations already use. Carbon Theme for Frappe restyles the desk, the website, the login page and e-mail as if they had been designed with IBM's [Carbon Design System](https://carbondesignsystem.com) (v11): IBM Plex type, square corners, Carbon's colour tokens and focus rings, the Carbon UI Shell header and Carbon's chart palettes. The values come from the official `@carbon/*` npm packages, and the theme replaces Frappe's own stylesheets rather than adding a layer on top of them.
 
-This app restyles Frappe and ERPNext as if they had been designed with IBM's [Carbon Design System](https://carbondesignsystem.com) (v11): IBM Plex type, square corners, Carbon's colour tokens and focus rings, the Carbon UI Shell header and Carbon's chart palettes. It replaces Frappe's own stylesheets rather than layering on top of them, so each surface loads one stylesheet. It targets Frappe v16 (16.50 or later).
+It is for teams that work in the Frappe desk all day and want a denser, more consistent interface, and for organisations that already use Carbon. It runs on Frappe v16 (16.50 or later) and is free software under the [MIT licence](../license.txt).
+
+![The Sales Invoice list in Carbon: the g100 UI Shell header with the module's links, the side nav, filter fields and a Carbon data table with status tags](screenshots/list-view-light.webp)
 
 ## What you get
 
-- Every surface themed: the desk, the website and portal, the login page, e-mail, charts, and the frappe-ui apps. Light mode is Carbon's g10 theme, dark mode its g100 theme.
-- The Carbon UI Shell header, built from Frappe's module sidebar, with search, notifications, the account menu and an app switcher.
-- One TanStack-driven Carbon table engine behind child tables, the List view and the Report and Query views.
-- Brand colours for light and dark, and a striped yellow header on local development sites.
-- An AI assistant panel built from Carbon AI Chat, when the flow app is installed.
-- Drift audits that catch the silent breakage a Frappe or Carbon upgrade can cause.
+### Every surface in Carbon
 
-## Installation
+The desk, the website and portal pages, the login page, e-mail, charts and the frappe-ui apps (CRM, Helpdesk, Builder, Wiki and others) all use Carbon's tokens. Light mode uses Carbon's g10 theme and dark mode its g100 theme, following the theme each user picks in the desk. Numbers and dates in tables are set in IBM Plex Mono, and charts use Carbon's categorical palettes. See [How it works](development/architecture.md).
 
-```bash
-bench get-app https://github.com/Avunu/carbon_theme --branch develop
-bench --site <site> install-app carbon_theme
-bench build
-```
+### The Carbon UI Shell header
 
-The theme applies to every site on the bench, so install it on a bench of its own. [Deploying](deploying.md) explains how to check that it is being served and what can undo it.
+A Carbon header across the top of the desk shows the current module's links and sub-menus, search, notifications, your account menu and an app switcher. It is built from Frappe's own module sidebar, so it always shows what the sidebar shows. See [Use the header](ui-shell.md).
 
-## Pages
+### One table engine for every table
 
-- [Deploying](deploying.md): installing, verifying, the caveats and the drift guards.
-- [Configuration](configuration.md): brand colours in Carbon Settings and the dev indicator.
-- [How it works](how-it-works.md): stylesheet shadowing, the token mapping, frappe-ui apps, e-mail and the deliberate deviations from Carbon.
-- [UI Shell header](ui-shell.md): what the header shows and how it follows Frappe's sidebar.
-- [Tables](tables.md): the table engine, what it changes and what stays compatible.
-- [AI assistant](ai-assistant.md): the chat panel for flow, its behaviour and its integration seams.
-- [Development](development.md): the dev shell, the checks, the browser suites, CI and releasing.
+Child tables, the List view and the Report and Query views are drawn by one Carbon data table. Columns can be resized, reordered and sorted, child-table rows open into their form in place, and the Report view supports spreadsheet-style selection, copy and paste. See [Work with tables](tables.md).
 
-## License
+![An editable Sales Invoice's Items child table drawn by the theme's table engine, with the Carbon table toolbar and Add row, and the first row expanded into its form in place](screenshots/child-table-light.webp)
 
-[MIT](https://github.com/Avunu/carbon_theme/blob/develop/license.txt), Copyright (c) 2026–present Avunu LLC. IBM Plex is included under the SIL Open Font License.
+### Brand colours and a development marker
+
+A System Manager can set brand colours for light and dark mode and a header colour in **Carbon Settings**. On local development sites the header turns yellow with hazard stripes, so a development tab is not mistaken for production. See [Configuration](configuration.md).
+
+### An AI assistant panel
+
+When Frappe's [flow](https://github.com/frappe/flow_client) app is installed, the header gets an AI assistant built from Carbon AI Chat, with conversation history, feedback and file attachments. See [Use the AI assistant](ai-assistant.md).
+
+## Where to start
+
+| You are                                 | Read                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Someone who works in the desk           | [Use the header](ui-shell.md), [Work with tables](tables.md) and [Use the AI assistant](ai-assistant.md)                         |
+| The administrator setting it up         | [Install and upgrade](install.md), [Configuration](configuration.md) and [Limitations and troubleshooting](troubleshooting.md)   |
+| A developer changing the app            | [Development](development/README.md) and [How it works](development/architecture.md)                                             |
+| A developer whose app or report uses it | [How it works](development/architecture.md), especially what the table engine keeps compatible and how frappe-ui apps are themed |
+
+## Requirements
+
+- A bench with Frappe v16, 16.50 or later. The app declares `frappe >=16.0.0,<17.0.0`, but its stylesheets import files that only exist from Frappe 16.50.
+- A bench of its own. The theme replaces Frappe's stylesheets for the whole bench, including sites that do not have the app installed: see [Limitations](troubleshooting.md#limitations).
+- Node and yarn on the machine that builds the assets, as for any Frappe app with a `package.json`.
+- ERPNext is not required. The app works with any Frappe apps and is tested with ERPNext and HRMS.
+- For the AI assistant only: the [flow](https://github.com/frappe/flow_client) app on the same site.
+
+## Source and changes
+
+The source is at [github.com/Avunu/carbon_theme](https://github.com/Avunu/carbon_theme). Each release is listed on the [releases page](https://github.com/Avunu/carbon_theme/releases), and the [changelog](../CHANGELOG.md) lists the changes in each version.
+
+IBM Plex is included under the SIL Open Font License.
