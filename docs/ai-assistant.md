@@ -1,33 +1,84 @@
-# AI assistant
+---
+title: Use the AI assistant
+description: Chat with flow's AI assistant from the Carbon header, attach files, rate replies, and find, rename and delete past conversations.
+nav_title: AI assistant
+order: 5
+updated: 2026-10-26
+---
 
-When [flow](https://github.com/frappe/flow_client), the Frappe AI app, is installed, the header gets one more action, directly before the app switcher. It opens a chat panel built from Carbon AI Chat's web components (`@carbon/ai-chat-components`) that docks to the inline-end edge at 360px and expands to the full width of the window. The panel talks to flow's whitelisted methods (`flow.api.start_run`, `resume_run`, `stop_run`, `recover_session`, `submit_feedback`, `attach_file`) and reads `Flow Run`, and reads, renames and deletes `Flow Session`, through `frappe.client`. Attachments also use frappe's `upload_file` and delete the `File` docs the panel itself uploaded. `Ctrl+I` toggles it. Without flow in `frappe.boot.versions`, or on a read-only site, there is no button, no host element and no listener.
+When Frappe's [flow](https://github.com/frappe/flow_client) app is installed on the site, the header gets an **AI assistant** button directly before the switcher. It opens a chat panel built from Carbon AI Chat that talks to flow's assistant. The panel replaces flow's own panel; the assistant, its tools and what it may do are flow's.
 
-It replaces flow's own slide-over rather than sitting beside it. How the code is split and delivered is under [Deliberate deviations from Carbon](how-it-works.md#deliberate-deviations-from-carbon); the behaviour that matters to a user or an integrator is below.
+Without flow, or on a site in read-only mode, there is no button. On a phone-sized window (below 768px) there is no header and so no assistant.
 
-- **Flow takeover, and what happens when the chat does not load.** At mount the header snapshots flow's `flow-panel-state`, hides flow's panel (`frappe.flow.panel`), hides `#flow-root` through `body.cf-ai-chat` and takes `Ctrl+I`. If the chat bundle cannot be loaded (never built, network, a stale entry), the panel shows an error with **Retry**, **Reload the page** (offered once an import has failed, because a failed chunk stays failed until the page reloads) and **Open the Flow panel**. At that moment the theme gives `Ctrl+I` and `#flow-root` back to flow, but it never shows flow's panel by itself: the user asked for ours, and two panels at once would be worse than the error. Opening flow's panel is the button. A Retry that works takes flow's panel over again.
-- **Phones.** There is no trigger and no panel below the mobile breakpoint (`innerWidth < 768`, `frappe.is_mobile()`): frappe keeps its own navbar there, so the header, and with it the assistant, is not mounted, and flow's own panel is left as flow made it. This is a limitation of where the action lives, not a setting. A narrow desktop window (up to 42rem) gets the panel at full width with the page behind it `inert`, as does the expanded panel.
-- **Conversations.** The **Conversation history** action in the chat header (pressed while the list is open, disabled while a reply streams) lays a list over the message area. It is not the shell's own `history` slot: Carbon's shell renders that slot only when it is at least 640px wide (`--cds-aichat-messages-min-width` plus `--cds-aichat-history-width`, 320px each), and the panel is 360px. The list shows your own `Flow Session`s, newest first, whatever started them except flow's triggers (`owner` is you, `source` is not `Trigger`), grouped as Today, Yesterday, Previous 7 days, Previous 30 days and Older. It asks for the 100 most recent and searches those on the client by title; when exactly 100 came back, a note says older conversations exist that search cannot find. Choosing one recovers it (flow fails any `Running` run whose stream is gone) and rebuilds the transcript from `Flow Session` and its `Flow Run`s, so a conversation paused on an approval comes back with its approval card live. Each row has a menu: **Rename** edits `Flow Session.title` in place (shown at once, put back if the server refuses) and **Delete** asks for confirmation, then deletes the session and, through flow's `on_trash`, its runs; there is no undo. Deleting the conversation that is open resets the panel to a new chat and leaves the list open. A quick second choice wins over a slow first one, and the list shows a skeleton, an empty state or an error with **Try again** instead of a blank.
-- **Several tabs.** Streaming holds a lease in `localStorage` (`cf-ai-stream`, refreshed while a reply is read). Another tab that opens a conversation then skips `recover_session`, which would fail the streaming tab's live run, and refuses to delete the session that tab is streaming. Nothing else is synchronised between tabs: the list is fetched again each time it opens.
-- **Feedback.** A finished reply has thumbs up and down. Up is sent at once; Down opens a comment box and is sent with it. Selecting the selected thumb again withdraws the rating (`submit_feedback` with `None`). The call is optimistic: if the server refuses (a run that is not finished, for example), the thumb goes back and an alert shows the server's reason; the comment typed for a refused Down is lost. Ratings come back from `Flow Run.feedback_rating` when a conversation is restored or selected. A Down comment is stored by flow as agent memory only when the agent has memory enabled.
-- **Times.** Each message shows its time in the avatar line, with the full date as its title and accessible label: the time alone for today, otherwise date and time. The time is the turn's start, taken from `Flow Run.creation` for the question and the answer alike: a `Flow Session Message` row carries the session's creation time, so the run is the only per-turn clock. Frappe stores these datetimes as naive strings in the system time zone; the panel converts them from `frappe.boot.time_zone.system` and shows them in `frappe.boot.time_zone.user` with `Intl`, so a browser in a third zone does not shift them. (`frappe.datetime` returns formatted strings, not instants, and frappe-types declares no accessor for the instant.)
-- **Long conversations.** Selecting or reloading a conversation builds only the last 30 or so messages, snapped back to the question that starts the turn. **Show earlier messages** prepends 30 more at a time, keeps the reader's scroll position and moves focus to the row that was first. A 200-message conversation opens without a long task. Two buttons inside the message area, **Beginning of the conversation** and **End of the conversation**, are visually hidden until focused and jump into the rows. Up arrow in an empty prompt also moves to the last message; from a message the arrow keys move between messages (Up from the first one built goes to **Show earlier messages** while earlier ones are hidden), Home and End go to the first and last, and Escape returns to the prompt with the panel still open.
-- **Attachments.** The prompt has an **Attach files** button; files can also be dropped anywhere on the panel (an overlay and an announcement say so) or pasted into the prompt. A paste becomes attachments only when the clipboard holds files and no `text/html`, so a screenshot or a file copied in a file manager attaches while a spreadsheet selection still pastes as text. What may be attached is flow's call: the types are `frappe.boot.flow_supported_file_types` (plain text and data formats such as CSV, JSON and Markdown, PDF, DOCX, XLSX, HTML and images), matched against the file _name_ the way flow matches it, and the size limit is the site's `max_file_size`. At most five files go with one message; flow has no such limit, but it puts every inline file into the prompt again on each later turn, so the cap protects the context window. The browser checks type, size, emptiness, duplicates, name length (140 characters) and count first and names each refusal in an error line under the prompt (several are grouped by reason, so the line fits the room the component gives it), so nothing is uploaded for a file that cannot be used. An accepted file is uploaded as a private `File` (`upload_file` with `is_private=1`, through `XMLHttpRequest` because `fetch` reports no upload progress), then `flow.api.attach_file` reads it: the extraction is synchronous, and images and scanned PDFs go through OCR, so it can take seconds. Each file shows as a chip that is uploading, ready or failed with the server's reason; a progress strip with **Cancel** shows while anything is in flight, since Carbon's uploading chip has no remove button. Send is held while an upload runs and while one has failed (remove it first). A message cannot be only files, because `start_run` rejects an empty `input`; the prompt says to add text. While an approval waits, attaching is off, because `resume_run` takes no attachments. On send, the files' names go to `start_run` as `attachments`; flow stores a `Flow Session Attachment` row per file and puts its text into that turn's prompt, either whole (clamped to the context window) or, for a file too large to inline when flow has an embedding model, as the best-matching chunks. The panel shows neither mode nor truncation. Sent files show as read-only chips under the question, and come back from those rows after a reload (name only: the rows carry no content type or URL, so there is no preview).
-- **Attachments, and what happens to the files.** A file the user removes, cancels or that fails is deleted again (the owner may delete a `File`; best effort, a failure is logged). A file that was sent belongs to the conversation: the panel never deletes it. Flow removes the `File` docs only in its retention purge (`clear_old_logs`, 30 days idle), not when a conversation is deleted, so after a delete they remain as private unattached Files until then. A `File` that a `Flow Session Attachment` row links cannot be deleted by anyone else. **New chat** discards staged files; switching to another conversation keeps them, like the draft text. A tab closed while a file was uploading leaves that `File` behind, and nothing in flow reclaims it. **Not done:** page context. The panel does not tell the model which document the user is looking at, and it will not prepend that to the message, because the text would end up in the stored transcript and in the conversation title; it needs a `context` argument on `start_run`.
-- **Setup mode.** With no enabled `Flow Agent` and no saved conversation the panel shows what to configure (System Managers get the steps), the prompt is disabled with the placeholder "Finish setup to start chatting", and the history action still works.
+## Open and close the panel
 
-## Developer and integration seams
+- Click **AI assistant** in the header, or press Ctrl+I.
+- The panel docks to the right, 360px wide. **Expand** widens it to the whole window and **Collapse** brings it back. In a narrow window it always takes the full width.
+- To close it, click **AI assistant** again, press Ctrl+I, use **Close** in the panel's header, or press Escape. Escape inside a message, an approval card, the feedback box or the conversation history acts there first: in a message it returns you to the prompt, and the panel stays open. The panel remembers whether it was open and expanded, and which conversation you had open, when you reload.
 
-State lives in `localStorage` under these keys; every read and write is guarded, so a browser that blocks storage behaves as if all were absent.
+The first time you open it, the panel loads its code, which takes a moment. If that fails, it shows "The AI assistant could not be loaded" with **Retry**. **Reload the page** is added when part of the code failed to load, and **Open the Flow panel** when flow's own panel is available. See [Troubleshooting](troubleshooting.md#the-ai-assistant).
 
-| Key                  | Value                                                                   | Written by                                 |
-| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------ |
-| `cf-ai-panel`        | `{"v":1,"open":bool,"expanded":bool}`                                   | the header (open, close, expand, collapse) |
-| `cf-ai-session`      | the open `Flow Session` name; `""` is a deliberate new chat             | the chat; seeded once from flow's state    |
-| `cf-ai-session-user` | the user `cf-ai-session` belongs to; a different user starts a new chat | the header                                 |
-| `cf-ai-agent`        | optional `Flow Agent` name for new conversations                        | nothing in the product                     |
-| `cf-ai-stream`       | the streaming tab's lease, `<owner>@<epoch ms>@<session>`               | the chat                                   |
-| `flow-panel-state`   | flow's own state; read once, rewritten once with `open: false`          | flow (the header rewrites it once)         |
+## Before the assistant is set up
 
-**`cf-ai-agent` is a supported seam, not a leftover.** Set it before a conversation's first message and `start_run` is sent with that `agent`, so an integration (or a developer) can run the panel against an agent other than flow's default Assistant: `localStorage.setItem("cf-ai-agent", "Support Agent")`. It applies to new conversations only (an existing session is bound to its agent), the product never writes it, and the browser suite sets it to run against its own `CF AI Test Agent`. A name that does not exist, or that the user cannot read, makes the send fail with flow's message in the reply.
+Until flow has an enabled Flow Agent, the prompt is disabled and reads "Finish setup to start chatting".
 
-**Attaching files is on only when flow says what it can read.** The chat reads two keys of `frappe.boot`, once, when it mounts: `flow_supported_file_types` (flow's `extend_bootinfo` hook, `flow.boot.boot_session`: the extensions its extractor handles, lower case and without a dot) and `max_file_size` (frappe's; the limit falls back to 5 MiB, frappe's own client default, when it is missing). When the first is absent or empty, for example on an older flow, there is no Attach button, no file input, no drop overlay and no chip list, and a dropped or pasted file is left to the browser as if the chat were not there. A change to either key shows after a reload. The code is in `ai_chat/uploads.ts` (the rules: limits, validation, the wording of refusals, the mapping between pending files, `structured_data` and chips; no DOM) and `ai_chat/flow/client.ts` (`uploadFile`, `attachFile`, `deleteFile`, with the XHR injected so the tests drive it). `ai_chat/controller.ts` runs each upload's lifecycle and owns the deletion of `File`s, `ai_chat/store.ts` holds the pending uploads in the shape of Carbon AI Chat's own (`pendingUploads`, `hasInFlightUploads`), and `ai_chat/view/attachments.ts` is the composer, the drop target (its enter/leave counter is `ai_chat/drag_depth.ts`) and the sent chips.
+- A System Manager sees the two steps: create and enable a Flow Model with your provider credentials, then enable a Flow Agent (flow creates one when a model exists). **Open Flow Models** goes to the list.
+- Everyone else sees "The assistant has not been set up yet. Ask your administrator to enable it."
+
+**Conversation history** still works while set-up is unfinished.
+
+## Chat
+
+Type in **Ask the assistant…** and press Enter or **Send**. The reply streams in. While it streams, **Stop response** ends it. Each message shows its time: the time alone for today, otherwise the date and time, in your own time zone.
+
+When the assistant wants to create, change or delete records, it asks first with an approval card. Choose **Approve**, **Deny**, or tell it what to do instead, and it continues.
+
+**New chat** starts a new conversation. The text you have typed and any files you attached stay when you switch to another conversation, and are cleared by **New chat**.
+
+### Move around a long conversation
+
+A long conversation opens at its last 30 or so messages. **Show earlier messages** at the top adds 30 more at a time.
+
+From the keyboard: press the Up arrow in an empty prompt to move to the last message, then use the arrow keys to move between messages, Home and End to go to the first and last, and Escape to return to the prompt.
+
+## Attach files
+
+Click **Attach files** beside the prompt, drop files anywhere on the panel, or paste them into the prompt.
+
+- Up to five files go with one message.
+- The file types are the ones flow can read (such as plain text, CSV, JSON, Markdown, PDF, DOCX, XLSX, HTML and images), and the size limit is the site's maximum file size.
+- Each file shows as a chip while it uploads, with a **Cancel** bar while anything is in flight. Reading a PDF or an image can take a few seconds, because flow reads its text.
+- A message cannot be only files: add some text.
+- While the assistant waits for an approval, you cannot attach files.
+
+A file the panel refuses is named in a line under the prompt with the reason, for example "Not a supported file type: …" or "You can attach at most 5 files."
+
+If flow does not say which file types it reads (an older flow), there is no **Attach files** button and dropping or pasting a file does nothing in the panel.
+
+> [!NOTE]
+> Attached files are stored on the site as private files. A file you remove before sending is deleted again. A file you sent stays after you delete the conversation, until flow's own clean-up removes it 30 days after the conversation was last used.
+
+## Rate a reply
+
+A finished reply has **Good response** and **Bad response** buttons. A good rating is sent at once. A bad one opens a box for a comment, sent with the rating. Click the selected button again to withdraw your rating.
+
+When flow's agent has memory enabled, it may keep a bad rating's comment and use it in other people's conversations, as the comment box says.
+
+## Find past conversations
+
+**Conversation history** in the panel's header opens a list of your conversations, newest first, grouped as Today, Yesterday, Previous 7 days, Previous 30 days and Older. Conversations started by flow's triggers are not listed.
+
+- **Search conversations** filters by title. It searches your 100 most recent conversations, and says so when you have more.
+- Click a conversation to open it. A conversation that was waiting for an approval opens with the approval card ready.
+- Each row's menu has **Rename** and **Delete**. Delete asks first and cannot be undone.
+
+If the same conversation is replying in another browser tab, opening or deleting it there waits: "This conversation is replying in another tab. Try again when it has finished."
+
+## What the assistant does not know
+
+The assistant is not told which document you are looking at. Name the document in your message.
+
+## Related
+
+- [Use the header](ui-shell.md)
+- [How it works](development/architecture.md#the-ai-assistant) for how the panel uses flow and what it stores in the browser
