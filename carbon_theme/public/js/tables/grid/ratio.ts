@@ -99,30 +99,21 @@ export function columnWeight({ columns, px }: WeightSource, scale: ColumnScale):
 	return weightOfPx(px, scale);
 }
 
-/** What {@link columnFloor} needs to know about one column. */
-export interface FloorSource {
-	weight: number;
-	/** The px its header label needs (tables/widths.ts `headerWidth`). */
-	label: number;
-}
-
 /**
- * The narrowest a column is drawn when the grid runs out of room: the smaller
- * of its header label's width and the width frappe's own scale gives its span,
- * and never less than frappe's minimum.
+ * The narrowest a column is drawn: the width frappe's own scale gives its
+ * weight, and never less than frappe's minimum.
  *
- * The span's px is what frappe 16.50 itself drew the column at, so wherever the
- * grid is about as wide as frappe's pixel layout assumed (a 1280px screen with
- * the sidebar open), the ratio comes out close to it and nothing is squeezed
- * below it; above that, every column grows by its ratio. Taking the label as
- * well lets a short-label column ("Item", "Rate") give way before anything has
- * to scroll, and keeps a `columns: 1` Check at 60px whatever its label says.
- * Holding a column open for a label longer than its span's px would starve the
- * columns with the most content (a span-4 Item Code beside "Amount (USD)") to
- * show headers that already ellipsize, with their full text in a tooltip.
+ * That is the width frappe 16.50 itself drew the column at, so the ratio only
+ * ever adds width: wherever the grid is about as wide as frappe's pixel layout
+ * assumed (a 1280px screen with the sidebar open) the ratio comes out close to
+ * it, above that every column grows by its ratio, and below it the columns sit
+ * at frappe's widths and the table scrolls sideways, as it always did. A floor
+ * under the span's px (the header label's width, say) would let a short-label
+ * column with the most content (a span-4 "Item") be squeezed first and hardest
+ * on a narrow screen, narrower than every column beside it.
  */
-export function columnFloor({ weight, label }: FloorSource, scale: ColumnScale, min: number): number {
-	return Math.ceil(Math.max(min, Math.min(label, pxOfWeight(weight, scale))));
+export function columnFloor(weight: number, scale: ColumnScale, min: number): number {
+	return Math.ceil(Math.max(min, pxOfWeight(weight, scale)));
 }
 
 /**

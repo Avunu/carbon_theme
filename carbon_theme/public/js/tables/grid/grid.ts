@@ -42,7 +42,6 @@ import Grid, {
 	LEGACY_COLSIZE_TO_PX,
 } from "frappe/public/js/frappe/form/grid";
 import CarbonTable, { isColumnResize } from "../engine/table.ts";
-import { headerWidth } from "../widths.ts";
 import { gridProfile } from "./classes.ts";
 import { columnFloor, columnWeight, ratioWidths } from "./ratio.ts";
 import { ensureChildRow } from "./expand.ts";
@@ -185,7 +184,46 @@ export default class CarbonGrid extends Grid {
 		this.form_grid.empty();
 		this.carbon_table = new CarbonTable(this.form_grid.get(0), this.engine_options());
 		this.observe_panel_width();
+		this.reset_width_on_double_click();
 		this.close_dropdowns_on_scroll();
+	}
+
+	/**
+	 * Double-clicking a data column's resize handle gives the column back to the
+	 * ratio layout.
+	 *
+	 * The engine's own double-click resets a column to its spec size, but a width
+	 * the user chose IS the spec size here (`ratio_column_sizes` fixes it), so that
+	 * reset changes nothing. This forgets the choice instead: the session's drag,
+	 * and the saved `GridView` width, which goes back to the metadata width that
+	 * `ratio_column_sizes` reads as "not chosen". The listener sits on the
+	 * container, so it runs after the engine's handler on the handle itself.
+	 */
+	reset_width_on_double_click(): void {
+		const table = this.carbon_table;
+		if (!table) return;
+		table.container.addEventListener("dblclick", (event) => {
+			const target = event.target;
+			for (const [columnId, entry] of table.renderer.headerCells) {
+				if (entry.resizer && entry.resizer === target) {
+					this.reset_column_width(columnId);
+					return;
+				}
+			}
+		});
+	}
+
+	/** Forget the width the user chose for `fieldname`; see {@link CarbonGrid.reset_width_on_double_click}. */
+	reset_column_width(fieldname: string): void {
+		const column = (this.visible_columns || []).find(([df]) => df.fieldname === fieldname);
+		if (!column) return;
+		if (this._dragged_widths && fieldname in this._dragged_widths) {
+			const rest = Object.assign({}, this._dragged_widths);
+			delete rest[fieldname];
+			this._dragged_widths = rest;
+		}
+		this.save_column_width(fieldname, this.meta_column_width(column[0]));
+		this.relayout_columns();
 	}
 
 	/**
@@ -435,8 +473,8 @@ export default class CarbonGrid extends Grid {
 	 * - FIXED: a width dragged in this session; a saved `GridView` width that
 	 *   differs from what the metadata gives (see `meta_column_width`); a sticky
 	 *   column, which keeps frappe's px so the scrolling columns keep their room.
-	 * - FLOOR: the smaller of the header label's width and the px frappe's scale
-	 *   gives the weight, at least frappe's 60px (see `columnFloor`).
+	 * - FLOOR: the px frappe's scale gives the weight, at least frappe's 60px
+	 *   (see `columnFloor`): no column is drawn narrower than frappe drew it.
 	 */
 	ratio_column_sizes(visible: Array<[GridDocField, number]>, gutters: number): Map<string, number> | null {
 		const scroll = this.carbon_table && this.carbon_table.renderer.scroll;
@@ -459,8 +497,7 @@ export default class CarbonGrid extends Grid {
 			const chosen = user && user.width && user.width !== this.meta_column_width(df) ? user.width : 0;
 			const fixed =
 				dragged[df.fieldname] || (chosen ? this.clamp_column_width(chosen) : 0) || (df.sticky ? px : 0);
-			const label = headerWidth(__(df.label, null, df.parent) || "");
-			const floor = columnFloor({ weight, label }, LEGACY_COLSIZE_TO_PX, GRID_MIN_COLUMN_WIDTH);
+			const floor = columnFloor(weight, LEGACY_COLSIZE_TO_PX, GRID_MIN_COLUMN_WIDTH);
 			return { weight, floor, fixed: fixed || undefined };
 		});
 		const sizes = ratioWidths(width - gutters, columns);

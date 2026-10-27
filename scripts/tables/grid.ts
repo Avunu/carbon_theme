@@ -53,7 +53,7 @@ interface LayoutColumn {
 	w: number;
 	/** the weight the ratio gives it: `df.columns`, else its fallback px on frappe's scale */
 	weight: number;
-	/** the narrowest it may be drawn: its header label, capped, at least 60px */
+	/** the narrowest it may be drawn: frappe's px for its weight, at least 60px */
 	floor: number;
 }
 
@@ -404,9 +404,9 @@ interface SwitchProbe {
  *
  * The weight and floor are worked out here from the docfield the same way the
  * theme's tables/grid/ratio.ts does (`columns`, else the fallback px on
- * frappe's `LEGACY_COLSIZE_TO_PX` scale; the floor is the smaller of the label
- * at 8px a character plus 48px and the span's px, at least 60), so the check
- * is against the rule and not against the grid's own numbers.
+ * frappe's `LEGACY_COLSIZE_TO_PX` scale; the floor is the weight's px on that
+ * scale, at least 60), so the check is against the rule and not against the
+ * grid's own numbers.
  */
 const layoutOf = (grid: string): string => `((grid) => {
     const scale = [[1, 60], [2, 100], [3, 140], [4, 200], [5, 250], [6, 300], [7, 350], [8, 400], [9, 450], [10, 500], [11, 550], [12, 600]];
@@ -427,7 +427,7 @@ const layoutOf = (grid: string): string => `((grid) => {
     const cols = grid.visible_columns.map(([df]) => {
       const px = Math.min(600, Math.max(60, cint(df.width) || defaults[df.fieldtype] || 140));
       const weight = Number.isInteger(df.columns) && df.columns >= 1 && df.columns <= 12 ? df.columns : lerp(px, inverse);
-      const floor = Math.min(__(df.label, null, df.parent).length * 8 + 48, lerp(weight, scale));
+      const floor = lerp(weight, scale);
       return { id: df.fieldname, w: Math.round(th(df.fieldname)), weight, floor: Math.ceil(Math.max(60, floor)) };
     });
     return {
@@ -526,10 +526,10 @@ try {
 	// --- the columns ratio ------------------------------------------------------
 	// Sales Order Item's five list columns are spans 3, 2, 1, 2, 2. frappe 16.50
 	// draws them as 150/100/100/100px and gives the last column the rest; the
-	// theme shares the width out in that 3:2:1:2:2 ratio, every column at least
-	// its label's width, and follows the viewport when it changes.
+	// theme shares the width out in that 3:2:1:2:2 ratio, no column under
+	// frappe's own width for it, and follows the viewport when it changes.
 	const ratio: Record<number, LayoutProbe> = {};
-	for (const width of [1280, 1920]) {
+	for (const width of [1280, 1920, 1000]) {
 		await page.send("Emulation.setDeviceMetricsOverride", {
 			width,
 			height: 1000,
@@ -557,6 +557,15 @@ try {
 		"no column takes the remainder: the last one is in the same ratio as the rest",
 		!!wide && (wide.cols[4]?.w ?? 0) <= (wide.cols[0]?.w ?? 0),
 		JSON.stringify(wide && wide.cols.map((c) => c.w)),
+	);
+	const cramped = ratio[1000];
+	ok(
+		"... and on a 1000px screen, where the ratio does not fit, every column keeps frappe's own width and the table scrolls",
+		!!cramped &&
+			cramped.overflow &&
+			cramped.cols.every((c) => c.w >= c.floor - 1) &&
+			(cramped.cols[0]?.w ?? 0) >= 140,
+		JSON.stringify(cramped && cramped.cols),
 	);
 
 	// >10 columns — the headline capability
@@ -597,7 +606,7 @@ try {
 	ok("still no .column-limit-reached past 10 columns", many.limitReached === 0);
 	const manyLayout = await page.eval<LayoutProbe>(layoutOf("cur_frm.fields_dict.items.grid"));
 	ok(
-		"16 columns whose labels do not fit are held at their floors and scroll",
+		"16 columns that do not fit sit at frappe's own widths and scroll",
 		manyLayout.overflow && manyLayout.cols.every((c) => c.w >= c.floor - 1),
 		JSON.stringify(manyLayout.cols.filter((c) => c.w < c.floor - 1)),
 	);
@@ -798,6 +807,47 @@ try {
 			!roundTrip.layout.overflow &&
 			Math.abs(roundTrip.layout.sum - roundTrip.layout.inner) <= 1,
 		JSON.stringify(roundTrip),
+	);
+
+	// Double-clicking the handle of a column with a chosen width gives it back
+	// to the ratio: its saved width returns to the metadata width (rate's
+	// "100px"), and it no longer draws at the 90px that was chosen.
+	const unchosen = await page.eval<{
+		before: number;
+		after: number;
+		saved: number | null;
+		sum: number;
+		inner: number;
+	}>(
+		`(async () => {
+    const grid = cur_frm.fields_dict.items.grid;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const th = () => grid.wrapper.find('thead th[data-col-id="rate"]')[0];
+    const before = Math.round(th().getBoundingClientRect().width);
+    th().querySelector('.cf-table__resize-handle').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await sleep(600);
+    const rows = frappe.model.user_settings['Sales Order'].GridView['Sales Order Item'];
+    const rate = rows.find((c) => c.fieldname === 'rate');
+    const layout = ${layoutOf("grid")};
+    const after = Math.round(th().getBoundingClientRect().width);
+    // Put the legacy layout back for the cases below.
+    frappe.model.user_settings['Sales Order'] = { GridView: { 'Sales Order Item': [
+      { fieldname: 'item_code', columns: 3, sticky: 1 },
+      { fieldname: 'qty', columns: 4 },
+      { fieldname: 'rate', width: 90 },
+    ] } };
+    grid.reset_grid();
+    await sleep(900);
+    return { before, after, saved: rate ? rate.width : null, sum: layout.sum, inner: layout.inner };
+  })()`,
+	);
+	ok(
+		"double-clicking a chosen column's handle returns it to the ratio and saves the metadata width",
+		unchosen.before === 90 &&
+			unchosen.after !== 90 &&
+			unchosen.saved === 100 &&
+			Math.abs(unchosen.sum - unchosen.inner) <= 1,
+		JSON.stringify(unchosen),
 	);
 
 	// `df.sticky` still draws the column where it belongs: frappe writes

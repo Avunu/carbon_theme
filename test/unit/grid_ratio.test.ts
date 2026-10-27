@@ -10,7 +10,6 @@ import {
 	ratioWidths,
 	weightOfPx,
 } from "../../carbon_theme/public/js/tables/grid/ratio.ts";
-import { headerWidth } from "../../carbon_theme/public/js/tables/widths.ts";
 
 // frappe 16.50's LEGACY_COLSIZE_TO_PX (form/grid.js:23-36), the scale the grid
 // passes in. The browser suite checks the grid against frappe's own table.
@@ -73,43 +72,35 @@ describe("columnWeight", () => {
 });
 
 describe("columnFloor", () => {
-	it("is the header label's width when that is under the span's px", () => {
-		assert.equal(columnFloor({ weight: 4, label: 80 }, SCALE, 60), 80); // "Item", span 4
-		assert.equal(columnFloor({ weight: 3, label: 120 }, SCALE, 60), 120); // "Item Code", span 3
+	it("is the px frappe's scale gives the weight: frappe's own width for the column", () => {
+		assert.equal(columnFloor(4, SCALE, 60), 200);
+		assert.equal(columnFloor(3, SCALE, 60), 140);
+		assert.equal(columnFloor(2, SCALE, 60), 100);
+		assert.equal(columnFloor(2.5, SCALE, 60), 120);
 	});
-	it("is the span's px when the label is longer, so a long label cannot starve the others", () => {
-		assert.equal(columnFloor({ weight: 2, label: 144 }, SCALE, 60), 100); // "Amount (USD)", span 2
-		assert.equal(columnFloor({ weight: 2.5, label: 300 }, SCALE, 60), 120);
-	});
-	it("keeps a columns: 1 Check at frappe's 60px whatever its label", () => {
-		assert.equal(columnFloor({ weight: 1, label: 144 }, SCALE, 60), 60);
+	it("keeps a columns: 1 Check at frappe's 60px", () => {
+		assert.equal(columnFloor(1, SCALE, 60), 60);
 	});
 	it("is never under frappe's minimum", () => {
-		assert.equal(columnFloor({ weight: 3, label: 0 }, SCALE, 60), 60);
-		assert.equal(columnFloor({ weight: 2, label: 40.2 }, SCALE, 60), 60);
-	});
-	it("builds on the header width the list estimator uses", () => {
-		// "Quantity": 8 chars x 8px + the 32px cell inset + 16px for the handle
-		assert.equal(headerWidth("Quantity"), 112);
-		assert.equal(headerWidth(""), 0);
+		assert.equal(columnFloor(0.5, SCALE, 60), 60);
+		assert.equal(columnFloor(1, { 1: 40, 2: 80 }, 60), 60);
 	});
 });
 
 describe("Sales Invoice Item's list columns", () => {
 	// item_code 4, qty 2, rate 2, amount 2, warehouse (Link, no span: 140px = 3),
-	// in the 663px a 1280px screen leaves them, and the 1303px of a 1920px one.
-	const cols = [
-		{ weight: 4, floor: columnFloor({ weight: 4, label: headerWidth("Item") }, SCALE, 60) },
-		{ weight: 2, floor: columnFloor({ weight: 2, label: headerWidth("Quantity") }, SCALE, 60) },
-		{ weight: 2, floor: columnFloor({ weight: 2, label: headerWidth("Rate (USD)") }, SCALE, 60) },
-		{ weight: 2, floor: columnFloor({ weight: 2, label: headerWidth("Amount (USD)") }, SCALE, 60) },
-		{ weight: 3, floor: columnFloor({ weight: 3, label: headerWidth("Warehouse") }, SCALE, 60) },
-	];
+	// in the 663px a 1280px screen leaves them, the 1303px of a 1920px one, and
+	// the 383px of a 1000px one.
+	const cols = [4, 2, 2, 2, 3].map((weight) => ({ weight, floor: columnFloor(weight, SCALE, 60) }));
 	it("come out near frappe's own px at 1280px, with nothing left over for a last column", () => {
 		assert.deepEqual(ratioWidths(663, cols), [204, 102, 102, 102, 153]);
 	});
 	it("grow by their ratio at 1920px", () => {
 		assert.deepEqual(ratioWidths(1303, cols), [401, 201, 200, 200, 301]);
+	});
+	it("sit at frappe's own px and scroll when that does not fit; the widest span is never squeezed first", () => {
+		assert.deepEqual(ratioWidths(383, cols), [200, 100, 100, 100, 140]);
+		assert.deepEqual(ratioWidths(650, cols), [200, 100, 100, 100, 150]);
 	});
 });
 
