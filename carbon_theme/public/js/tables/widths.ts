@@ -73,6 +73,15 @@ export function clampWidth(px: number, min: number = MIN_WIDTH, max: number = MA
 	return Math.min(Math.max(px, min), max);
 }
 
+/**
+ * The px a header needs to show `label` whole: the text, the cell inset and,
+ * by default, the resize handle. The child-table Grid's column floor
+ * (tables/grid/ratio.ts) is built on it.
+ */
+export function headerWidth(label: string, extra: number = HEADER_EXTRA): number {
+	return label ? Math.ceil(label.length * HEADER_CHAR + CELL_PADDING + extra) : 0;
+}
+
 /** What {@link estimateWidth} needs to know about one column. */
 export interface WidthColumn {
 	/** The plain header label; empty for the button and rail columns. */
@@ -93,7 +102,7 @@ export interface WidthColumn {
  */
 export function estimateWidth(column: WidthColumn, cells: Iterable<string>): number {
 	const headerExtra = column.headerExtra ?? HEADER_EXTRA;
-	let wanted = column.label ? column.label.length * HEADER_CHAR + CELL_PADDING + headerExtra : 0;
+	let wanted = headerWidth(column.label, headerExtra);
 	for (const html of cells) {
 		const text = textOf(html);
 		// `carbon-num` is what carbon_desk.bundle puts on numeric and date output

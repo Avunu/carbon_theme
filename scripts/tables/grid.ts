@@ -46,6 +46,29 @@ interface ManyProbe {
 	cellsInFirstRow: number;
 }
 
+/** One data column of a {@link LayoutProbe}. */
+interface LayoutColumn {
+	id: string;
+	/** the header cell's rendered width */
+	w: number;
+	/** the weight the ratio gives it: `df.columns`, else its fallback px on frappe's scale */
+	weight: number;
+	/** the narrowest it may be drawn: its header label, capped, at least 60px */
+	floor: number;
+}
+
+/** `layout` — a grid's drawn columns measured against its viewport. */
+interface LayoutProbe {
+	/** the scroll viewport's clientWidth */
+	inner: number;
+	/** every header cell, gutters included */
+	sum: number;
+	overflow: boolean;
+	cols: LayoutColumn[];
+	/** px per unit of weight, over the columns not held at their floor */
+	units: number[];
+}
+
 /** One column's width as the model, the <colgroup> and the DOM each report it. */
 interface ColumnWidth {
 	id: string;
@@ -72,14 +95,10 @@ interface WidthsProbe {
 
 /** `dfWidth` — `df.width`, set by hand, before and after the grid is rebuilt. */
 interface DfWidthProbe {
-	/** `df.width = 222` */
-	exact: number;
-	/** `df.width = "700px"` — a docfield width is a CSS length — clamped to 600 */
-	clampedHigh: number;
-	/** `df.width = 20`, clamped to 60 */
-	clampedLow: number;
-	/** the same column's content box in the first body row, for the exact case */
-	cell: number;
+	/** frappe's model for the column after `df.width = 222`, `"700px"` and `20` */
+	model: number[];
+	/** the column's drawn width before, and after each of the three */
+	drawn: number[];
 }
 
 /** Where a header's resize handle is, and how wide its column is before the drag. */
@@ -115,6 +134,8 @@ interface RoundTripProbe {
 	/** legacy `columns` spans (3, 4) and a px `width` (90), as three header widths */
 	legacy: number[];
 	legacyColumns: string[];
+	/** the same grid's layout */
+	layout: LayoutProbe;
 }
 
 /** `configure` — the Configure Columns dialog: its inputs, a clamp, and Update. */
@@ -124,6 +145,7 @@ interface ConfigureProbe {
 	clamped: number[];
 	saved: Array<number | undefined>;
 	rebuilt: number[];
+	layout: LayoutProbe;
 }
 
 /** `labels` — frappe's own label mechanism, driven against the moved buttons. */
@@ -164,14 +186,12 @@ interface PagedProbe {
 	selectAllBackOnTwo: boolean;
 }
 
-/** `fill` — a short grid: every column but the last exact, the last takes the spare. */
-interface FillProbe {
-	container: number;
-	table: number;
-	sum: number;
-	others: Array<{ id: string; model: number; th: number }>;
-	last: { id: string; model: number; th: number };
-	overflows: boolean;
+/** `hidden` — a grid built in a tab that was not showing, then shown. */
+interface HiddenProbe {
+	field: string | null;
+	/** the width it was laid out for while hidden (0: it could not be measured) */
+	before: number | null;
+	layout: LayoutProbe | null;
 }
 
 /** `api` — the inherited Grid/GridRow surface, one flag per call. */
@@ -379,6 +399,53 @@ interface SwitchProbe {
 	errorsAfter: number;
 	errors: string[];
 }
+/**
+ * A page expression measuring `grid`'s drawn layout as a {@link LayoutProbe}.
+ *
+ * The weight and floor are worked out here from the docfield the same way the
+ * theme's tables/grid/ratio.ts does (`columns`, else the fallback px on
+ * frappe's `LEGACY_COLSIZE_TO_PX` scale; the floor is the smaller of the label
+ * at 8px a character plus 48px and the span's px, at least 60), so the check
+ * is against the rule and not against the grid's own numbers.
+ */
+const layoutOf = (grid: string): string => `((grid) => {
+    const scale = [[1, 60], [2, 100], [3, 140], [4, 200], [5, 250], [6, 300], [7, 350], [8, 400], [9, 450], [10, 500], [11, 550], [12, 600]];
+    const defaults = { Text: 200, 'Small Text': 200, 'Long Text': 200, Check: 60, Int: 100, Float: 100, Currency: 100, Percent: 100 };
+    const lerp = (x, pts) => {
+      if (!(x > pts[0][0])) return pts[0][1];
+      for (let i = 1; i < pts.length; i++) {
+        const [x1, y1] = pts[i - 1], [x2, y2] = pts[i];
+        if (x <= x2) return y1 + ((x - x1) / (x2 - x1)) * (y2 - y1);
+      }
+      return pts[pts.length - 1][1];
+    };
+    const inverse = scale.map(([w, px]) => [px, w]);
+    const w = grid.wrapper;
+    const scroll = grid.carbon_table.renderer.scroll;
+    const th = (id) => w.find('thead th[data-col-id="' + id + '"]')[0].getBoundingClientRect().width;
+    const ths = [...w.find('thead tr.grid-row th')];
+    const cols = grid.visible_columns.map(([df]) => {
+      const px = Math.min(600, Math.max(60, cint(df.width) || defaults[df.fieldtype] || 140));
+      const weight = Number.isInteger(df.columns) && df.columns >= 1 && df.columns <= 12 ? df.columns : lerp(px, inverse);
+      const floor = Math.min(__(df.label, null, df.parent).length * 8 + 48, lerp(weight, scale));
+      return { id: df.fieldname, w: Math.round(th(df.fieldname)), weight, floor: Math.ceil(Math.max(60, floor)) };
+    });
+    return {
+      inner: scroll.clientWidth,
+      sum: Math.round(ths.reduce((n, h) => n + h.getBoundingClientRect().width, 0)),
+      overflow: scroll.scrollWidth > scroll.clientWidth,
+      cols,
+      units: cols.filter((c) => c.w > c.floor).map((c) => c.w / c.weight),
+    };
+  })(${grid})`;
+
+/** The columns fill the viewport exactly, none under its floor, the free ones in one ratio. */
+const fillsByRatio = (l: LayoutProbe): boolean =>
+	!l.overflow &&
+	Math.abs(l.sum - l.inner) <= 1 &&
+	l.cols.every((c) => c.w >= c.floor - 1) &&
+	(l.units.length < 2 || Math.max(...l.units) - Math.min(...l.units) <= 1.01);
+
 const BASE = process.env.CF_SITE_URL || "http://localhost:8794";
 const SHOT = process.env.CF_SHOT_DIR || new URL("../../.dev-dist/screenshots/", import.meta.url).pathname;
 fs.mkdirSync(SHOT, { recursive: true });
@@ -456,6 +523,42 @@ try {
 	ok(".grid-heading-row and .grid-empty present", dom.headingRow === 1 && dom.gridEmpty === 1);
 	ok("no .column-limit-reached", dom.limitReached === 0);
 
+	// --- the columns ratio ------------------------------------------------------
+	// Sales Order Item's five list columns are spans 3, 2, 1, 2, 2. frappe 16.50
+	// draws them as 150/100/100/100px and gives the last column the rest; the
+	// theme shares the width out in that 3:2:1:2:2 ratio, every column at least
+	// its label's width, and follows the viewport when it changes.
+	const ratio: Record<number, LayoutProbe> = {};
+	for (const width of [1280, 1920]) {
+		await page.send("Emulation.setDeviceMetricsOverride", {
+			width,
+			height: 1000,
+			deviceScaleFactor: 1,
+			mobile: false,
+		});
+		await new Promise((r) => setTimeout(r, 900));
+		ratio[width] = await page.eval<LayoutProbe>(layoutOf("cur_frm.fields_dict.items.grid"));
+		console.log(width, JSON.stringify(ratio[width]));
+	}
+	await page.send("Emulation.clearDeviceMetricsOverride");
+	await new Promise((r) => setTimeout(r, 900));
+	const [narrow, wide] = [ratio[1280], ratio[1920]];
+	ok(
+		"the columns share the grid's width by their columns ratio, exactly, at 1280px",
+		!!narrow && narrow.cols.length === 5 && fillsByRatio(narrow),
+		JSON.stringify(narrow),
+	);
+	ok(
+		"... and again after the viewport grows to 1920px (the layout follows a resize)",
+		!!wide && !!narrow && fillsByRatio(wide) && wide.inner > narrow.inner,
+		JSON.stringify(wide),
+	);
+	ok(
+		"no column takes the remainder: the last one is in the same ratio as the rest",
+		!!wide && (wide.cols[4]?.w ?? 0) <= (wide.cols[0]?.w ?? 0),
+		JSON.stringify(wide && wide.cols.map((c) => c.w)),
+	);
+
 	// >10 columns — the headline capability
 	const many = await page.eval<ManyProbe>(`(() => {
     const grid = cur_frm.fields_dict.items.grid;
@@ -492,6 +595,12 @@ try {
 		JSON.stringify(many.widths),
 	);
 	ok("still no .column-limit-reached past 10 columns", many.limitReached === 0);
+	const manyLayout = await page.eval<LayoutProbe>(layoutOf("cur_frm.fields_dict.items.grid"));
+	ok(
+		"16 columns whose labels do not fit are held at their floors and scroll",
+		manyLayout.overflow && manyLayout.cols.every((c) => c.w >= c.floor - 1),
+		JSON.stringify(manyLayout.cols.filter((c) => c.w < c.floor - 1)),
+	);
 	ok(
 		"horizontal scroll instead of the overflow hack",
 		many.scrollW > many.clientW,
@@ -503,11 +612,11 @@ try {
 		`${many.cellsInFirstRow} vs ${many.headers}`,
 	);
 
-	// --- column widths: frappe's pixel model, rendered by the engine -----------
+	// --- column widths: frappe's pixel model, drawn by ratio -------------------
 	// frappe 16.50 sizes columns in px itself (`get_column_width`: a saved or
 	// docfield `width`, else a legacy `columns` span, else a fieldtype default,
-	// clamped to 60-600). The grid renders those numbers; it must not compute
-	// its own, and a column the engine resizes has to take its cell with it.
+	// clamped to 60-600). That model is left as frappe keeps it; what is drawn
+	// is the ratio layout, one width per column across <col>, <th> and cell.
 	const widths = await page.eval<WidthsProbe>(`(() => {
     const grid = cur_frm.fields_dict.items.grid;
     const w = grid.wrapper;
@@ -528,19 +637,21 @@ try {
     });
     return {
       rows,
-      mismatched: rows.filter((r) => r.th !== r.model || r.cell !== r.model || (r.col !== null && r.col !== r.model)),
+      mismatched: rows.filter((r) => r.cell !== r.th || r.col === null || Math.abs(r.col - r.th) > 1),
       modelIsFrappes: grid.visible_columns.every(([df, m]) => grid.get_column_width(df) === m),
       limitReached: w.find('.column-limit-reached').length,
     };
   })()`);
 	ok(
-		"every column is exactly the width frappe's get_column_width gives it (model, <col>, <th>, cell)",
+		"frappe's model is get_column_width's, and every column is drawn at one width (<col>, <th>, cell)",
 		widths.rows.length > 10 && widths.modelIsFrappes && widths.mismatched.length === 0,
 		JSON.stringify(widths.mismatched.slice(0, 3)),
 	);
 
-	// `df.width` is the docfield's own pixel width ("150px" on Sales Order Item's
-	// item_code); the per-user setting writes a number into the same slot.
+	// `df.width` is the docfield's own pixel width ("100px" on Sales Order Item's
+	// qty, beside `columns: 1`); the per-user setting writes a number into the
+	// same slot. frappe's model still reads it (60-600), but the drawn width
+	// follows the `columns` span, which outranks a docfield width.
 	const dfWidth = await page.eval<DfWidthProbe>(`(async () => {
     const grid = cur_frm.fields_dict.items.grid;
     const df = grid.fields_map.qty;
@@ -548,20 +659,21 @@ try {
     const old = df.width;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const th = () => Math.round(grid.wrapper.find('thead th[data-col-id="qty"]')[0].getBoundingClientRect().width);
-    const measure = async (value) => { df.width = value; grid.reset_grid(); await sleep(900); return th(); };
-    const exact = await measure(222);
-    const cell = Math.round(grid.wrapper.find('tbody tr.grid-row')[0]
-      .querySelector('td[data-col-id="qty"] .grid-static-col').getBoundingClientRect().width);
-    const clampedHigh = await measure('700px');
-    const clampedLow = await measure(20);
+    const model = () => grid.visible_columns.find(([d]) => d.fieldname === 'qty')[1];
+    const drawn = [th()];
+    const models = [];
+    for (const value of [222, '700px', 20]) {
+      df.width = value; grid.reset_grid(); await sleep(900);
+      models.push(model()); drawn.push(th());
+    }
     if (had) df.width = old; else delete df.width;
     grid.reset_grid();
     await sleep(900);
-    return { exact, clampedHigh, clampedLow, cell };
+    return { model: models, drawn };
   })()`);
 	ok(
-		"df.width drives the column: honoured exactly, and held to 60-600",
-		dfWidth.exact === 222 && dfWidth.cell === 222 && dfWidth.clampedHigh === 600 && dfWidth.clampedLow === 60,
+		"df.width is frappe's model (held to 60-600); the drawn width follows the columns span",
+		dfWidth.model.join() === "222,600,60" && dfWidth.drawn.every((d) => d === dfWidth.drawn[0]),
 		JSON.stringify(dfWidth),
 	);
 
@@ -670,6 +782,7 @@ try {
       rebuilt,
       legacy: headers.map((n) => Math.round(n.getBoundingClientRect().width)),
       legacyColumns: headers.map((n) => n.dataset.colId),
+      layout: ${layoutOf("grid")},
     };
   })()`);
 	ok(
@@ -678,11 +791,12 @@ try {
 		JSON.stringify(roundTrip),
 	);
 	ok(
-		"legacy `columns` spans still resolve (3 -> 140, 4 -> 200) beside a px width",
+		"a legacy layout resolves: the sticky span-3 column keeps frappe's 140px, the chosen 90px is kept, the span-4 column takes the rest",
 		roundTrip.legacyColumns.join() === "item_code,qty,rate" &&
 			roundTrip.legacy[0] === 140 &&
-			roundTrip.legacy[1] === 200 &&
-			(roundTrip.legacy[2] ?? 0) >= 90,
+			roundTrip.legacy[2] === 90 &&
+			!roundTrip.layout.overflow &&
+			Math.abs(roundTrip.layout.sum - roundTrip.layout.inner) <= 1,
 		JSON.stringify(roundTrip),
 	);
 
@@ -741,7 +855,8 @@ try {
       inputs,
       clamped,
       saved: last.GridView['Sales Order Item'].map((c) => c.width),
-      rebuilt: [th('item_code'), th('qty')],
+      rebuilt: [th('item_code'), th('qty'), th('rate')],
+      layout: ${layoutOf("grid")},
     };
   })()`);
 	ok(
@@ -749,11 +864,19 @@ try {
 		configure.inputs.join() === "140,200,90",
 		JSON.stringify(configure.inputs),
 	);
+	// Every column now has a chosen width (600, 60, 90), which leaves nothing to
+	// take the spare room; they grow in proportion to the widths chosen.
+	const [cfgA = 0, cfgB = 0, cfgC = 0] = configure.rebuilt;
 	ok(
-		"Configure Columns: widths are held to 60-600, saved, and applied by Update",
+		"Configure Columns: widths are held to 60-600, saved, and applied by Update (in their 600:60:90 ratio)",
 		configure.clamped.join() === "600,60" &&
 			configure.saved.join() === "600,60,90" &&
-			configure.rebuilt.join() === "600,60",
+			cfgA >= 600 &&
+			cfgB >= 60 &&
+			cfgC >= 90 &&
+			Math.abs(cfgA / cfgB - 10) < 0.2 &&
+			Math.abs(cfgC / cfgB - 1.5) < 0.05 &&
+			Math.abs(configure.layout.sum - configure.layout.inner) <= 1,
 		JSON.stringify(configure),
 	);
 
@@ -773,6 +896,30 @@ try {
     await new Promise((r) => setTimeout(r, 900));
     return true;
   })()`);
+
+	// A grid built while its tab was hidden measured 0px wide: it falls back to
+	// frappe's px until it is shown, and the ResizeObserver lays it out then.
+	const hidden = await page.eval<HiddenProbe>(`(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Sales Order's Payment Schedule sits on the Terms tab.
+    const grid = cur_frm.fields_dict.payment_schedule && cur_frm.fields_dict.payment_schedule.grid;
+    if (!grid || !grid.carbon_table || grid.carbon_table.renderer.scroll.clientWidth !== 0) return { field: null, before: null, layout: null };
+    const before = grid._ratio_width;
+    if (!grid.data.length) { cur_frm.add_child(grid.df.fieldname); cur_frm.refresh_field(grid.df.fieldname); await sleep(600); }
+    cur_frm.scroll_to_field(grid.df.fieldname);
+    await sleep(1200);
+    const layout = ${layoutOf("grid")};
+    cur_frm.clear_table(grid.df.fieldname);
+    cur_frm.refresh_field(grid.df.fieldname);
+    cur_frm.scroll_to_field('items');
+    await sleep(900);
+    return { field: grid.df.fieldname, before, layout };
+  })()`);
+	ok(
+		"a grid built in a hidden tab is laid out by ratio once its tab is shown",
+		hidden.field !== null && hidden.before === 0 && !!hidden.layout && fillsByRatio(hidden.layout),
+		JSON.stringify(hidden),
+	);
 
 	// inherited Grid API surface
 	const api = await page.eval<ApiProbe>(`(() => {
@@ -1519,36 +1666,14 @@ try {
 		switched.errors.slice(0, 2).join(" | "),
 	);
 
-	// A short grid: the last data column takes the spare width and the others
-	// are exactly what frappe says (frappe's `.grid-data-last`), instead of the
-	// browser stretching every column in proportion.
-	const fill = await page.eval<FillProbe>(`(() => {
-    const grid = cur_frm.fields_dict.email_ids.grid;
-    const w = grid.wrapper;
-    const scroll = grid.carbon_table.renderer.scroll;
-    const th = (id) => Math.round(w.find('thead th[data-col-id="' + id + '"]')[0].getBoundingClientRect().width);
-    const entry = ([df, model]) => ({ id: df.fieldname, model, th: th(df.fieldname) });
-    const vc = grid.visible_columns;
-    const sum = [...w.find('thead tr.grid-row th')]
-      .reduce((n, h) => n + Math.round(h.getBoundingClientRect().width), 0);
-    return {
-      container: Math.round(scroll.clientWidth),
-      table: Math.round(w.find('table')[0].getBoundingClientRect().width),
-      sum,
-      others: vc.slice(0, -1).map(entry),
-      last: entry(vc[vc.length - 1]),
-      overflows: scroll.scrollWidth > scroll.clientWidth,
-    };
-  })()`);
+	// A short grid: Contact Email's Data column (no span: 140px, weight 3) and
+	// its `columns: 2` Check share the width 3:2 and fill it exactly, instead
+	// of the Check keeping 60px and the email taking everything else.
+	const short = await page.eval<LayoutProbe>(layoutOf("cur_frm.fields_dict.email_ids.grid"));
 	ok(
-		"a short grid fills its container through the last column; the others keep their width",
-		!fill.overflows &&
-			Math.abs(fill.table - fill.container) <= 1 &&
-			Math.abs(fill.sum - fill.container) <= 1 &&
-			fill.others.length > 0 &&
-			fill.others.every((c) => c.th === c.model) &&
-			fill.last.th > fill.last.model,
-		JSON.stringify(fill),
+		"a short grid fills its container by the columns ratio; no column takes the remainder",
+		short.cols.length === 2 && fillsByRatio(short) && short.units.length === 2,
+		JSON.stringify(short),
 	);
 	await page.eval(`(async () => {
     await frappe.set_route('List', 'Contact');

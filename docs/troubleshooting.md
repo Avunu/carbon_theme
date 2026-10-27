@@ -13,6 +13,7 @@ updated: 2026-10-26
 - **The theme depends on undocumented Frappe behaviour**: how Frappe names and merges `assets.json` entries. A change there in Frappe can stop the theme from loading.
 - **Frappe 16.50 or later.** The stylesheets import files that older Frappe versions do not have, and do not compile against them.
 - **No header or assistant on phones.** Below 768px Frappe's own navigation bar is kept. It is also kept on read-only sites, while impersonating a user and while an announcement widget shows.
+- **Child-table columns are sized by the Columns property, not by a field's Width.** A field's **Columns** (1-12) sets its share of the table's width. A **Width** set on the field only sets that share when it has no **Columns**; stock Frappe draws it as a fixed width in pixels. A width a user drags or types in **Configure Columns** is kept exactly.
 - **Frozen columns do not stay in place in child tables.** A field marked to stick and the leading check box and expand columns scroll away when a child table scrolls sideways. The List and Report views are not affected.
 - **Some tables are not replaced.** The Data Import preview and the System Console keep Frappe's own table, in Carbon colours, and Frappe's embedded lists keep their plain table.
 - **frappe-ui apps on older versions are themed on a best-effort basis.** Apps on frappe-ui v0 (and flow's `beta.3`) use older token names, some of which cannot be mapped exactly. CRM's `1.0.0-beta.29` can show some coloured text one shade off.

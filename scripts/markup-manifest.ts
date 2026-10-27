@@ -70,10 +70,12 @@ export const SELECTORS: readonly SelectorEntry[] = [
 	["static-area", "frappe/public/js/frappe/form/grid_row.js"],
 	["field-area", "frappe/public/js/frappe/form/grid_row.js"],
 	["sortable-handle", "frappe/public/js/frappe/form/grid_row.js"],
-	// The last data column fills spare width (grid_row.js `grid-data-last`); the
-	// engine reproduces it as `fill` on the last column (tables/grid/grid.ts), and
-	// frappe's drag handle on the header is the one the engine's own replaces
-	// (desk/_carbon-table.scss).
+	// frappe gives the last data column the spare width (grid_row.js
+	// `grid-data-last`); the theme replaces that with a ratio layout
+	// (tables/grid/ratio.ts) and holds every cell to its <td>
+	// (desk/_carbon-table.scss), so a rename or a new last-column mechanism is
+	// worth knowing about. frappe's drag handle on the header is the one the
+	// engine's own replaces.
 	["grid-data-last", "frappe/public/js/frappe/form/grid_row.js"],
 	["grid-col-resize-handle", "frappe/public/js/frappe/form/grid_row.js"],
 	// The child-table detail panel. The Carbon expandable row RE-HOMES frappe's
@@ -357,7 +359,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/make_column\(df, width, txt, ci\)/,
 	],
 	[
-		"GridRow marks the last data column .grid-data-last (the engine's `fill` mirrors it)",
+		"GridRow marks the last data column .grid-data-last (the ratio layout replaces it)",
 		"frappe/public/js/frappe/form/grid_row.js",
 		/removeClass\("grid-data-last"\)\);\s*this\.columns_list\[this\.columns_list\.length - 1\]\?\.addClass\("grid-data-last"\)/,
 	],
