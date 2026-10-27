@@ -476,6 +476,14 @@
 		inline-size: 100%;
 	}
 
+	// frappe wraps an editable Currency input in a flex box
+	// (`.grid-currency-input`, grid_row.js), and a flex item's automatic minimum
+	// is its intrinsic width: the input's 20-character `size`, about 190px. In
+	// any narrower column the input ran past its cell and was clipped.
+	.grid-currency-input > .form-control {
+		min-inline-size: 0;
+	}
+
 	// The detail panel is a Carbon expandable row now, not a host for frappe's
 	// modal. Its anatomy lives in its own section further down; what belongs
 	// here is only the height rule, because the block above pins

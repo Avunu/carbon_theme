@@ -3,24 +3,31 @@
 
 // CarbonGrid — frappe's child-table Grid, rendered by the Carbon table engine.
 //
-// WHAT CHANGES: who lays the columns out. frappe 16.50 sizes every column in
-// pixels itself (`Grid#get_column_width`, grid.js:1526-1538: a user's saved
-// `df.width`, else a legacy `columns` span, else a fieldtype default, clamped to
-// 60-600) and writes them inline on each cell as `flex: 1 0 Npx; width: Npx`
-// (grid_row.js:910, 970), inside a `display: flex` row that scrolls sideways.
-// Here the same widths seed TanStack's column-sizing feature, which owns them
-// from then on: they live in a <colgroup>, the table scrolls horizontally the
-// way any table does, and a header drag is the ENGINE's (`onColumnResize`),
+// WHAT CHANGES: who lays the columns out, and how. frappe 16.50 sizes every
+// column in pixels itself (`Grid#get_column_width`, grid.js:1531-1538: a
+// `df.width`, else the docfield's `columns` span read through
+// `LEGACY_COLSIZE_TO_PX` as 60-600px, else a fieldtype default, else 140) and
+// gives the row's spare width to the last column (`.grid-data-last`,
+// grid_row.js:766-768). On a normal screen that drew most columns too narrow
+// for their contents and one very wide last column. Here the columns SHARE the
+// grid's width in the ratio of their `columns` spans (./ratio.ts; see
+// `ratio_column_sizes` for where each weight, floor and fixed width comes from),
+// a width the user chose is kept exactly, and the layout follows the grid's
+// width as it changes. The widths seed TanStack's column-sizing feature: they
+// live in a <colgroup>, the table scrolls horizontally only when the columns'
+// floors do not fit, and a header drag is the ENGINE's (`onColumnResize`),
 // handed back to frappe's own `save_column_width` so it is persisted exactly
 // where frappe persists it. (`df.sticky` is declared to the engine as column
 // pinning, which is inert on a child table; see the README's "Known limits".)
 //
-// WHAT DOES NOT CHANGE: everything else, and in particular the width model.
-// This subclasses frappe's Grid and overrides only the three methods that
-// produce DOM (`make`, `make_head`, `render_result_rows`) plus
-// `_teardown_column_layout`, which has to reach the engine. `setup_visible_columns`,
-// `get_column_width` and `setup_user_defined_columns` are INHERITED, so a width
-// frappe computes is a width this grid renders. `refresh()` in particular is
+// WHAT DOES NOT CHANGE: everything else, including frappe's own width model as
+// frappe's code sees it. This subclasses frappe's Grid and overrides only the
+// three methods that produce DOM (`make`, `make_head`, `render_result_rows`)
+// plus `_teardown_column_layout`, which has to reach the engine.
+// `setup_visible_columns`, `get_column_width` and `setup_user_defined_columns`
+// are INHERITED, so `visible_columns[n][1]`, the Configure Columns dialog and
+// the saved `GridView` setting all carry frappe's own pixel widths; only what
+// is DRAWN is the ratio layout. `refresh()` in particular is
 // INHERITED too — it finds `.rows` (the profile puts that class on our <tbody>),
 // `.grid-empty` and `.form-grid-container` exactly where it expects them, and
 // `make_sortable()` binds Sortable to the same element it always did.
@@ -28,9 +35,15 @@
 // The ~60 `.grid.*` members app code calls (70 `update_docfield_property`,
 // 51 `get_field`, 44 `refresh`, 35 `grid_rows`, ...) are therefore inherited
 // implementations operating on new DOM, not reimplementations.
-import Grid, { GRID_MAX_COLUMN_WIDTH, GRID_MIN_COLUMN_WIDTH } from "frappe/public/js/frappe/form/grid";
+import Grid, {
+	DEFAULT_COLUMN_WIDTHS,
+	GRID_MAX_COLUMN_WIDTH,
+	GRID_MIN_COLUMN_WIDTH,
+	LEGACY_COLSIZE_TO_PX,
+} from "frappe/public/js/frappe/form/grid";
 import CarbonTable, { isColumnResize } from "../engine/table.ts";
 import { gridProfile } from "./classes.ts";
+import { columnFloor, columnWeight, ratioWidths } from "./ratio.ts";
 import { ensureChildRow } from "./expand.ts";
 import CarbonGridRow from "./grid_row.ts";
 import GridToolbar, { mountFooter } from "./toolbar.ts";
@@ -88,6 +101,32 @@ function isTableRow(node: HTMLElement): node is HTMLTableRowElement {
 	return node.tagName === "TR";
 }
 
+/** One column of a saved `GridView` layout, as far as the width model reads it. */
+interface SavedGridColumn {
+	/** px, from a drag or Configure Columns; 0 when the row has none */
+	width: number;
+	/** a pre-16.50 layout's 1-12 span; 0 when the row has none */
+	columns: number;
+}
+
+/** A plain object, so its keys can be read without a cast. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+/**
+ * The inner width of the scroll viewport in whole px, rounded DOWN: columns
+ * that add up to this never overflow it, where `clientWidth` (rounded to the
+ * nearest px) can be half a pixel too wide and show a 1px scrollbar.
+ */
+function innerWidth(scroll: HTMLElement): number {
+	const border = scroll.offsetWidth - scroll.clientWidth;
+	return Math.max(0, Math.floor(scroll.getBoundingClientRect().width) - border);
+}
+
+/** The row-menu gutter after the data columns, in px. */
+const MENU_GUTTER = 48;
+
 export default class CarbonGrid extends Grid {
 	// ---------------------------------------------------- carbon's own members
 	//
@@ -99,8 +138,21 @@ export default class CarbonGrid extends Grid {
 
 	/** The engine this grid renders through. Created by {@link CarbonGrid.make}. */
 	declare carbon_table?: CarbonTable<GridRowData> | undefined;
-	/** Publishes `--cf-panel-width`; see {@link CarbonGrid.observe_panel_width}. */
+	/**
+	 * Watches the scroll viewport: publishes `--cf-panel-width` and re-lays the
+	 * columns out; see {@link CarbonGrid.observe_panel_width}.
+	 */
 	declare _panel_observer?: ResizeObserver | undefined;
+	/** The viewport width the columns were last laid out for; 0 when it could not be measured. */
+	declare _ratio_width?: number | undefined;
+	/** A pending {@link CarbonGrid.schedule_ratio_layout} frame. */
+	declare _ratio_frame?: number | undefined;
+	/**
+	 * Widths dragged in this session, by fieldname. A grid with a `frm` also
+	 * saves them to `GridView` (where {@link CarbonGrid.saved_columns} finds them
+	 * again); one without, in a dialog or a Web Form, has only this.
+	 */
+	declare _dragged_widths?: Record<string, number> | undefined;
 	/** The Carbon toolbar, built by the engine's `renderToolbar` region hook. */
 	declare toolbar?: GridToolbar | undefined;
 	/** Whether frappe's per-column filter row is showing. */
@@ -132,7 +184,46 @@ export default class CarbonGrid extends Grid {
 		this.form_grid.empty();
 		this.carbon_table = new CarbonTable(this.form_grid.get(0), this.engine_options());
 		this.observe_panel_width();
+		this.reset_width_on_double_click();
 		this.close_dropdowns_on_scroll();
+	}
+
+	/**
+	 * Double-clicking a data column's resize handle gives the column back to the
+	 * ratio layout.
+	 *
+	 * The engine's own double-click resets a column to its spec size, but a width
+	 * the user chose IS the spec size here (`ratio_column_sizes` fixes it), so that
+	 * reset changes nothing. This forgets the choice instead: the session's drag,
+	 * and the saved `GridView` width, which goes back to the metadata width that
+	 * `ratio_column_sizes` reads as "not chosen". The listener sits on the
+	 * container, so it runs after the engine's handler on the handle itself.
+	 */
+	reset_width_on_double_click(): void {
+		const table = this.carbon_table;
+		if (!table) return;
+		table.container.addEventListener("dblclick", (event) => {
+			const target = event.target;
+			for (const [columnId, entry] of table.renderer.headerCells) {
+				if (entry.resizer && entry.resizer === target) {
+					this.reset_column_width(columnId);
+					return;
+				}
+			}
+		});
+	}
+
+	/** Forget the width the user chose for `fieldname`; see {@link CarbonGrid.reset_width_on_double_click}. */
+	reset_column_width(fieldname: string): void {
+		const column = (this.visible_columns || []).find(([df]) => df.fieldname === fieldname);
+		if (!column) return;
+		if (this._dragged_widths && fieldname in this._dragged_widths) {
+			const rest = Object.assign({}, this._dragged_widths);
+			delete rest[fieldname];
+			this._dragged_widths = rest;
+		}
+		this.save_column_width(fieldname, this.meta_column_width(column[0]));
+		this.relayout_columns();
 	}
 
 	/**
@@ -160,7 +251,8 @@ export default class CarbonGrid extends Grid {
 	}
 
 	/**
-	 * Publish the scroll viewport's width as `--cf-panel-width`.
+	 * Publish the scroll viewport's width as `--cf-panel-width`, and lay the
+	 * columns out again whenever it changes.
 	 *
 	 * The expanded detail panel lives in a cell that spans every column, so it
 	 * is as wide as the TABLE — which on a wide child table is wider than the
@@ -168,8 +260,13 @@ export default class CarbonGrid extends Grid {
 	 * viewport edge and sizes it from this property, so the form stays put while
 	 * the columns scroll behind it. Same discipline as <colgroup>: measure in
 	 * JS, write one explicit px value, let CSS consume it.
+	 *
+	 * The same change is what the ratio layout follows: a window resize, the
+	 * sidebar folding, and a grid that was measured at 0px because its tab or
+	 * section was hidden becoming visible are all a resize of this viewport.
 	 */
 	observe_panel_width(): void {
+		this.disconnect_layout_observer();
 		const scroll = this.carbon_table && this.carbon_table.renderer.scroll;
 		if (!scroll || typeof ResizeObserver === "undefined") return;
 		const write = (): void => {
@@ -181,10 +278,50 @@ export default class CarbonGrid extends Grid {
 			const table = this.carbon_table;
 			if (!table) return;
 			table.container.style.setProperty("--cf-panel-width", `${scroll.clientWidth}px`);
+			this.schedule_ratio_layout();
 		};
 		this._panel_observer = new ResizeObserver(write);
 		this._panel_observer.observe(scroll);
 		write();
+	}
+
+	/** Stop watching the viewport (the engine is being destroyed, or `make()` runs again). */
+	disconnect_layout_observer(): void {
+		if (this._panel_observer) this._panel_observer.disconnect();
+		this._panel_observer = undefined;
+		if (this._ratio_frame !== undefined) cancelAnimationFrame(this._ratio_frame);
+		this._ratio_frame = undefined;
+	}
+
+	/**
+	 * Re-lay the columns out on the next frame, if the viewport is now a width
+	 * they were not laid out for. One frame batches a burst of resize
+	 * notifications (a window drag, a sidebar transition) into one layout, and
+	 * the width check is what keeps a layout from feeding back into itself.
+	 */
+	schedule_ratio_layout(): void {
+		if (this._ratio_frame !== undefined || typeof requestAnimationFrame === "undefined") return;
+		this._ratio_frame = requestAnimationFrame(() => {
+			this._ratio_frame = undefined;
+			const scroll = this.carbon_table && this.carbon_table.renderer.scroll;
+			if (!scroll) return;
+			const width = innerWidth(scroll);
+			if (width > 0 && width !== this._ratio_width) this.relayout_columns();
+		});
+	}
+
+	/**
+	 * Rebuild the engine's columns from the current width model and draw them.
+	 * The specs carry every width (ratio, fixed, or frappe's own when nothing
+	 * can be measured), so any override the engine still holds from a drag is
+	 * dropped rather than left to outrank them.
+	 */
+	relayout_columns(): void {
+		const table = this.carbon_table;
+		if (!table || !this.visible_columns || !this.visible_columns.length) return;
+		table.setColumns(this.build_engine_columns());
+		table.resetColumnSizes();
+		table.render();
 	}
 
 	engine_options(): CarbonTableOptions<GridRowData> {
@@ -205,6 +342,7 @@ export default class CarbonGrid extends Grid {
 					const [detail] = args;
 					if (isColumnResize(detail)) this.persist_column_width(detail);
 				},
+				onDestroy: () => this.disconnect_layout_observer(),
 			},
 			// The filter row is always BUILT (CarbonGridRow#show_search_row);
 			// the toolbar's magnifier owns whether it is SHOWN.
@@ -273,7 +411,97 @@ export default class CarbonGrid extends Grid {
 	persist_column_width({ columnId, width }: CarbonColumnResize): void {
 		const shown = (this.visible_columns || []).some(([df]) => df.fieldname === columnId);
 		if (!shown) return;
-		this.save_column_width(columnId, this.clamp_column_width(width));
+		const clamped = this.clamp_column_width(width);
+		this._dragged_widths = Object.assign({}, this._dragged_widths, { [columnId]: clamped });
+		this.save_column_width(columnId, clamped);
+		// The dragged column is fixed now; the others share what it left.
+		this.relayout_columns();
+	}
+
+	/**
+	 * The saved `GridView` layout for this child table, by fieldname: what
+	 * `save_column_width` and Configure Columns wrote, and what
+	 * `setup_user_defined_columns` (grid.js:1546-1567) reads back.
+	 */
+	saved_columns(): Record<string, SavedGridColumn> {
+		const out: Record<string, SavedGridColumn> = {};
+		if (!this.frm || !this.doctype) return out;
+		const view = frappe.get_user_settings(this.frm.doctype, "GridView");
+		const rows = view[this.doctype];
+		if (!Array.isArray(rows)) return out;
+		for (const row of rows) {
+			if (!isRecord(row) || typeof row.fieldname !== "string") continue;
+			out[row.fieldname] = { width: cint(row.width), columns: cint(row.columns) };
+		}
+		return out;
+	}
+
+	/**
+	 * The width frappe would give a column from its doctype metadata alone, with
+	 * no user layout: `get_column_width` on the docfield as the doctype (and
+	 * Customize Form) define it.
+	 *
+	 * This is how a width the user CHOSE is told apart from one frappe merely
+	 * wrote down. `save_column_width` (grid.js:597-612) saves a width for EVERY
+	 * visible column, not just the dragged one, and Configure Columns pre-fills
+	 * and saves one for every column too; for each column nobody touched, that is
+	 * this number. The per-document docfield copy cannot answer it, because
+	 * `setup_user_defined_columns` writes the saved width over its `df.width`
+	 * (grid.js:1558); the doctype's own docfield in `frappe.meta.docfield_map`
+	 * still has the original.
+	 */
+	meta_column_width(df: GridDocField): number {
+		const doctype_fields = this.doctype ? frappe.meta.docfield_map[this.doctype] : undefined;
+		const meta = (doctype_fields && doctype_fields[df.fieldname]) || df;
+		const span = typeof meta.columns === "number" ? LEGACY_COLSIZE_TO_PX[meta.columns] : undefined;
+		return this.clamp_column_width(cint(meta.width) || span || DEFAULT_COLUMN_WIDTHS[df.fieldtype] || 140);
+	}
+
+	/**
+	 * The drawn width of every visible data column, by fieldname, or `null` when
+	 * the grid cannot be measured yet (a hidden tab or a collapsed section is
+	 * 0px wide; the ResizeObserver lays it out again once it shows).
+	 *
+	 * - WEIGHT: a legacy `columns` span in the user's saved layout, else the
+	 *   docfield's `columns` (1-12), else the weight of its fallback px width
+	 *   (a `df.width` from the doctype or a script, else the fieldtype default,
+	 *   else 140) on frappe's own `LEGACY_COLSIZE_TO_PX` scale. A docfield
+	 *   `width` is a weight, not a fixed width: frappe's own precedence puts it
+	 *   above `columns`, but most doctype widths are leftovers from the old
+	 *   grid ("32px" checkboxes, "100px" beside `columns: 1`), and the span is
+	 *   the property Customize Form presents for this.
+	 * - FIXED: a width dragged in this session; a saved `GridView` width that
+	 *   differs from what the metadata gives (see `meta_column_width`); a sticky
+	 *   column, which keeps frappe's px so the scrolling columns keep their room.
+	 * - FLOOR: the px frappe's scale gives the weight, at least frappe's 60px
+	 *   (see `columnFloor`): no column is drawn narrower than frappe drew it.
+	 */
+	ratio_column_sizes(visible: Array<[GridDocField, number]>, gutters: number): Map<string, number> | null {
+		const scroll = this.carbon_table && this.carbon_table.renderer.scroll;
+		const width = scroll ? innerWidth(scroll) : 0;
+		this._ratio_width = width;
+		if (width <= 0) return null;
+
+		const saved = this.saved_columns();
+		const dragged = this._dragged_widths || {};
+		const columns = visible.map(([df, px]) => {
+			const user = saved[df.fieldname];
+			const legacySpan = user && !user.width && user.columns ? user.columns : undefined;
+			const weight = columnWeight(
+				{
+					columns: legacySpan ?? df.columns,
+					px: this.clamp_column_width(cint(df.width) || DEFAULT_COLUMN_WIDTHS[df.fieldtype] || 140),
+				},
+				LEGACY_COLSIZE_TO_PX,
+			);
+			const chosen = user && user.width && user.width !== this.meta_column_width(df) ? user.width : 0;
+			const fixed =
+				dragged[df.fieldname] || (chosen ? this.clamp_column_width(chosen) : 0) || (df.sticky ? px : 0);
+			const floor = columnFloor(weight, LEGACY_COLSIZE_TO_PX, GRID_MIN_COLUMN_WIDTH);
+			return { weight, floor, fixed: fixed || undefined };
+		});
+		const sizes = ratioWidths(width - gutters, columns);
+		return new Map(visible.map(([df], i) => [df.fieldname, sizes[i] ?? GRID_MIN_COLUMN_WIDTH]));
 	}
 
 	/**
@@ -480,17 +708,23 @@ export default class CarbonGrid extends Grid {
 			},
 		];
 
+		// The gutters before the data and the menu gutter after it; their sizes
+		// are fixed and come off the width the data columns share.
+		const gutters = columns.reduce((n, c) => n + (c.size ?? 0), 0) + MENU_GUTTER;
 		const visible = this.visible_columns_or_build();
-		visible.forEach(([df, width], i) => {
+		const sizes = this.ratio_column_sizes(visible, gutters);
+		visible.forEach(([df, width]) => {
+			// The ratio width, or frappe's own px (`get_column_width`) while the
+			// grid cannot be measured. A ratio width may pass frappe's 600px cap on
+			// a wide screen, which the engine's `maxSize` would otherwise clamp; a
+			// drag is still saved within 60-600 by `clamp_column_width`.
+			const size = (sizes && sizes.get(df.fieldname)) || width;
 			columns.push({
 				id: df.fieldname,
 				label: __(df.label, null, df.parent),
-				// `width` is frappe's own, already clamped, pixel width for the column
-				// (`get_column_width`); the drag is held to the same 60-600 range
-				// `clamp_column_width` enforces on what gets saved.
-				size: width,
+				size,
 				minSize: GRID_MIN_COLUMN_WIDTH,
-				maxSize: GRID_MAX_COLUMN_WIDTH,
+				maxSize: Math.max(GRID_MAX_COLUMN_WIDTH, size),
 				align: ["Int", "Currency", "Float", "Percent"].includes(df.fieldtype)
 					? "right"
 					: df.fieldtype === "Check"
@@ -499,11 +733,8 @@ export default class CarbonGrid extends Grid {
 				sortable: false,
 				filterable: true,
 				pinned: df.sticky ? "start" : undefined,
-				// frappe's `.grid-data-last` (grid_row.js:766-768): the last data
-				// column takes whatever width the others leave, so a short grid
-				// fills its container without any one column being stretched past
-				// the width it was given.
-				fill: i === visible.length - 1,
+				// No `fill`: frappe's `.grid-data-last` (grid_row.js:766-768) gave
+				// the last column all the spare width; the ratio layout has none left.
 				meta: { df },
 				cell: (ctx) =>
 					node_of(ctx.row.original, (r) => {
@@ -516,7 +747,7 @@ export default class CarbonGrid extends Grid {
 		columns.push({
 			id: "_menu",
 			label: "",
-			size: 48,
+			size: MENU_GUTTER,
 			pinned: "end",
 			sortable: false,
 			filterable: false,
@@ -621,6 +852,9 @@ export default class CarbonGrid extends Grid {
 	 */
 	override _teardown_column_layout(): void {
 		this.visible_columns = [];
+		// The layout is rebuilt from the saved one, which already holds every
+		// width a drag persisted; a session-only drag goes with the old layout.
+		this._dragged_widths = undefined;
 		this.grid_rows = [];
 		if (this.carbon_table) {
 			this.carbon_table.setData([]);
