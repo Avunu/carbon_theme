@@ -7,7 +7,7 @@
 		"readme": "feature",
 		"width": 2880,
 		"height": 1800,
-		"sha256": "af24818b9036b3fb4bb9e133071c69a541d0b2f2e48765343c2a559c86c53009"
+		"sha256": "9d2f6d77082cb8d77eb8a073aa2c0fafe9b1969739e334a8cc83d589031f406e"
 	},
 	{
 		"name": "child-table",
@@ -17,7 +17,7 @@
 		"readme": "feature",
 		"width": 2880,
 		"height": 1800,
-		"sha256": "38581ed83f3d9ee9aad3c22308b5b6c6734e9da0e7d7cc49ee4cbf3f454df5a6"
+		"sha256": "fc176aa474b8d6b0c4290ba7f233f0b2cf581121306830e8293f43ec0cff5619"
 	},
 	{
 		"name": "list-view",
