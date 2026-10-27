@@ -1,5 +1,13 @@
 # Changelog
 
+## [16.3.1](https://github.com/Avunu/carbon_theme/compare/v16.3.0...v16.3.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **datatable:** add refreshCell and renderFooter shims ([#100](https://github.com/Avunu/carbon_theme/issues/100)) ([1bc0194](https://github.com/Avunu/carbon_theme/commit/1bc0194982ac41247b87d391559d4bd93727f155))
+* **tables:** size child-table columns by the docfield columns ratio ([#118](https://github.com/Avunu/carbon_theme/issues/118)) ([20535f7](https://github.com/Avunu/carbon_theme/commit/20535f710bd884d7d8390fd7c5c450aff5ae5934))
+
 ## [16.3.0](https://github.com/Avunu/carbon_frappe/compare/v16.2.2...v16.3.0) (2026-10-15)
 
 
