@@ -15,6 +15,7 @@ IBM Carbon Design System theme for the Frappe desk, website, login and email
 [![Latest release](https://img.shields.io/github/v/release/Avunu/carbon_theme)](https://github.com/Avunu/carbon_theme/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](license.txt)
 [![Frappe v16](https://img.shields.io/badge/Frappe-v16-blue)](https://github.com/frappe/frappe/tree/version-16)
+[![Documentation](https://img.shields.io/badge/docs-docs.avunu.net-blue)](https://docs.avunu.net/carbon-theme/)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/list-view-dark.webp">
@@ -106,6 +107,7 @@ The theme works without configuration. Two things can be set:
 
 ## Support
 
+- Documentation: [docs.avunu.net/carbon-theme/](https://docs.avunu.net/carbon-theme/)
 - Bug reports and questions: [GitHub issues](https://github.com/Avunu/carbon_theme/issues)
 - E-mail: <mail@avu.nu>
 
