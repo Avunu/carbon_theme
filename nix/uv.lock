@@ -17,6 +17,10 @@ overrides = [
     { name = "requests", specifier = ">=2.34.2" },
 ]
 
+[[manifest.dependency-metadata]]
+name = "pypika-stubs"
+requires-dist = ["pypika"]
+
 [[package]]
 name = "a2wsgi"
 version = "1.10.10"
@@ -938,7 +942,7 @@ wheels = [
 [[package]]
 name = "frappe-runtime"
 version = "0.1.0"
-source = { git = "https://github.com/Avunu/frappe-nix?subdirectory=runtime#d928defdaaeb53f87be527aad9bce0837f7f0674" }
+source = { git = "https://github.com/Avunu/frappe-nix?subdirectory=runtime#fe7724052a3be7995971325add0fa130dcad2efc" }
 dependencies = [
     { name = "a2wsgi" },
     { name = "httpx" },
