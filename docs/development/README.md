@@ -10,7 +10,7 @@ This page is for people changing the app. [How it works](architecture.md) explai
 
 ## Set up
 
-The repo is a [frappe-nix](https://github.com/Avunu/frappe-nix) app: `direnv allow` (or `nix develop --no-pure-eval`) gives a shell with Node 24, yarn, uv, chromium and a bench — frappe, erpnext and hrms from the flake's pinned inputs, this app symlinked in — and `devenv up` + `provision-site` bring the site up. Every check below runs there, and CI runs the same commands.
+The repo is a [frappe-nix](https://github.com/Avunu/frappe-nix) app: `direnv allow` (or `nix develop --no-pure-eval`) gives a shell with Node 24, yarn, uv, chromium and a bench — frappe, erpnext and hrms from the flake's pinned inputs, this app symlinked in — and `devenv up` + `bench provision` bring the site up. Every check below runs there, and CI runs the same commands.
 
 ## Commands
 
