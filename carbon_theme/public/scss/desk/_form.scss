@@ -111,6 +111,20 @@ body[data-route^="Form"] .layout-side-section {
 	align-self: flex-start;
 }
 
+// The price of that `height: auto`: frappe's attachment preview lives INSIDE
+// this sidebar and sizes itself as a percentage of it (form_sidebar.scss,
+// `.attachment-preview { height: 100% }`, then a flex column down to a
+// `height: 100%` iframe). A percentage of an auto height resolves to nothing,
+// and `max-height` doesn't count as a definite height, so a PDF's iframe fell
+// back to the browser's default 150px. While a preview is open the sidebar is
+// nothing but that pane (frappe hides .form-sidebar), so it has no content of
+// its own to size to: give it back a real height for exactly that long.
+// `align-self: flex-start` above still keeps it clear of the row's height, so
+// it sticks the same way.
+body[data-route^="Form"] .layout-side-section:has(.attachment-preview:not(.hidden)) {
+	height: calc(100vh - var(--cf-page-head-height, 96px));
+}
+
 // -- Card / backdrop ----------------------------------------------------------
 // The canvas-with-a-card split lives ONE level lower than PR #24 first put
 // it: breadcrumb, title and the tab row above are uncoloured (desk/_list.scss,
