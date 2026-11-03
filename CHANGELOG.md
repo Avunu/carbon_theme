@@ -1,5 +1,12 @@
 # Changelog
 
+## [16.3.2](https://github.com/Avunu/carbon_theme/compare/v16.3.1...v16.3.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* **desk:** pdf attachment not rendering full content ([#139](https://github.com/Avunu/carbon_theme/issues/139)) ([5fbcdee](https://github.com/Avunu/carbon_theme/commit/5fbcdeedf0a72617c81884a085f6ed92320aa21b))
+
 ## [16.3.1](https://github.com/Avunu/carbon_theme/compare/v16.3.0...v16.3.1) (2026-10-27)
 
 
