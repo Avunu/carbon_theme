@@ -10,8 +10,9 @@
 //    (desk/page/desktop/desktop.js:169-212) draws one tile per `app_data` entry
 //    that opted into the screen (`on_apps_screen`), ordered by `sequence_id`
 //    (lower first, ties in installed-apps order — `sort()` is stable), and each
-//    tile leads to `sidebar.app_landing_route(app) || app.app_route || "/desk"`,
-//    in a new tab when that is an absolute URL (:216-219). That is also exactly
+//    tile leads to `sidebar.app_landing_route(app) || "/desk"` (the landing route
+//    falls back to `app.app_route` itself), in a new tab when that is an absolute
+//    URL (`add_icon`). That is also exactly
 //    the "Apps" submenu of frappe's own sidebar-header menu, which has no rail
 //    to switch with (ui/sidebar/sidebar_header.js:192-225): the two are one list.
 //    The current app (`sidebar.get_sidebar_app()`) is the selected row. Modules
@@ -98,7 +99,7 @@ export function buildAppsTree(
 		.map((app, index) => ({ app, index }))
 		.sort((a, b) => (a.app.sequence_id ?? 100) - (b.app.sequence_id ?? 100) || a.index - b.index)
 		.map(({ app }) => {
-			const href = route(app) || app.app_route || "/desk";
+			const href = route(app) || "/desk";
 			return {
 				label: app.app_name,
 				title: translate(app.app_title || app.app_name),

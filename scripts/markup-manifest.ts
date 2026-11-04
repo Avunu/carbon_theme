@@ -496,9 +496,9 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/apply_column_widths\(\)/,
 	],
 	[
-		"on_row_checked resolves its handles lazily (we pre-assign $list_head_subject)",
+		"on_row_checked looks the head subject up under a <header> (the <thead> is not; our patch re-points it)",
 		"frappe/public/js/frappe/list/list_view.js",
-		/this\.\$list_head_subject =\s*\n?\s*this\.\$list_head_subject \|\|/,
+		/on_row_checked\(\) \{\s*this\.\$list_head_subject = this\.\$result\.find\("header \.list-header-subject"\);/,
 	],
 	// Selection moved off the DOM and into a Set in 16.50. The replacement
 	// render_list restates the contract frappe's own keeps (list_view.js
@@ -901,9 +901,9 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/\(a\.sequence_id \?\? 100\) - \(b\.sequence_id \?\? 100\)/,
 	],
 	[
-		"Apps screen: a tile leads to app_landing_route, then the app's route, then /desk",
+		"Apps screen: a tile leads to app_landing_route (which falls back to the app's route), then /desk",
 		"frappe/desk/page/desktop/desktop.js",
-		/app_landing_route\(app\) \|\| app\.app_route \|\| "\/desk"/,
+		/app_landing_route\(app\) \|\| "\/desk"/,
 	],
 	[
 		"Desktop Icons grid: a hidden icon is dropped, and an icon whose parent is visible nests under it",
@@ -964,7 +964,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 	[
 		"the window-level Escape handler blurs the active element (the failed-load panel stops the event first)",
 		"frappe/public/js/frappe/ui/keyboard.js",
-		/function handle_escape_key\(\) \{\s*close_grid_and_dialog\(\);\s*document\.activeElement\?\.blur\(\);/,
+		/function handle_escape_key\(e\) \{\s*if \(!e\.isDefaultPrevented\(\)\) close_grid_and_dialog\(\);\s*document\.activeElement\?\.blur\(\);/,
 	],
 	[
 		"frappe.is_mobile threshold (the shell never mounts below it)",
