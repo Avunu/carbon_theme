@@ -59,7 +59,7 @@ describe("buildAppsTree (DesktopPage.render_app_icons, desktop.js:169-212)", () 
 	it("leaves out an app that did not opt into the screen", () => {
 		assert.ok(!tree.some((e) => e.label === "telephony"));
 	});
-	it("leads where the tile does: the landing route, else the app's route, else /desk", () => {
+	it("leads where the tile does: the landing route (which falls back to the app's route), else /desk", () => {
 		assert.equal(tree.find((e) => e.label === "erpnext")?.href, "/desk/home");
 		assert.equal(tree.find((e) => e.label === "hrms")?.href, "/desk");
 		// the landing route wins over the declared one

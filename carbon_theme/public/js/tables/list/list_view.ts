@@ -362,12 +362,11 @@ export default function installListView(): void {
 	 * Only the bulk-action overlay survives from frappe's header; the aligned
 	 * column header is the engine's <thead>.
 	 *
-	 * `on_row_checked` reads `this.$list_head_subject` and
-	 * `this.$checkbox_actions` through `x = x || this.$result.find(...)`, so
-	 * pre-assigning both lets that method — and `set_rows_as_checked`,
-	 * `clear_checked_items`, `get_checked_items` — run completely unmodified.
-	 * Toggling the <thead> off while the overlay is shown is also exactly
-	 * Carbon's `cds--batch-actions--active` behaviour.
+	 * `on_row_checked` finds the overlay itself (`header .checkbox-actions`);
+	 * the <thead>, which stands in for `.list-header-subject`, is toggled
+	 * against it by the `on_row_checked` patch below. Toggling the <thead> off
+	 * while the overlay is shown is exactly Carbon's
+	 * `cds--batch-actions--active` behaviour.
 	 */
 	safePatch(
 		// The `X && X.prototype` spelling, rather than the bare
@@ -411,8 +410,8 @@ export default function installListView(): void {
 				// as its guard for `this.$checks` not existing yet, and the
 				// click handler calls it before the first `on_row_checked()`.
 				// Setting it early turns the first checkbox click into a
-				// TypeError on `this.$checks.length`. `on_row_checked` resolves
-				// it lazily from the overlay's `<header>` ancestor anyway.
+				// TypeError on `this.$checks.length`. `on_row_checked` finds it
+				// from the overlay's `<header>` ancestor itself.
 			},
 		"frappe.views.ListView.prototype.render_header (Carbon batch-actions overlay)",
 	);
@@ -522,7 +521,7 @@ export default function installListView(): void {
 
 				// The <thead> stands in for frappe's `.list-header-subject`.
 				// Safe to pre-assign (unlike `$checkbox_actions`): nothing reads
-				// it before `on_row_checked` runs.
+				// it before `on_row_checked` runs, which points it here again.
 				this.$list_head_subject = $(this.carbon_table.renderer.thead);
 
 				recordWidths(this, this.carbon_table, sizingFor(this));
@@ -536,6 +535,30 @@ export default function installListView(): void {
 				else if (selectedBefore) this.on_row_checked();
 			},
 		"frappe.views.ListView.prototype.render_list (CarbonTable)",
+	);
+
+	/**
+	 * `on_row_checked` looks the column header up as `header .list-header-subject`
+	 * on every call (list_view.js:2453-2454). The <thead> carries the class but is
+	 * not inside a `<header>`, so frappe's lookup comes back empty and would leave
+	 * the <thead> showing under the bulk-action overlay. Point the handle back at
+	 * the <thead> and do what frappe's toggle meant to: hide it while anything is
+	 * selected, and clear the select-all once nothing is.
+	 */
+	safePatch(
+		() => frappe.views.ListView && frappe.views.ListView.prototype,
+		"on_row_checked",
+		(orig) =>
+			function (this: ListView) {
+				orig.call(this);
+				if (!this.carbon_table) return;
+				const $thead = $(this.carbon_table.renderer.thead);
+				this.$list_head_subject = $thead;
+				const none = this.checked_docnames.size === 0;
+				$thead.toggle(none);
+				if (none) $thead.find(".list-check-all").prop("checked", false);
+			},
+		"frappe.views.ListView.prototype.on_row_checked (the <thead> is the head subject)",
 	);
 
 	/**

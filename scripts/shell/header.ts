@@ -390,7 +390,7 @@ try {
 				rows: links.map(a => a.textContent.trim()),
 				expected: apps.map(a => __(a.app_title)).concat([__('Desktop')]),
 				hrefs: links.slice(0, -1).map(a => a.getAttribute('href')),
-				expectedHrefs: apps.map(a => frappe.app.sidebar.app_landing_route(a) || a.app_route || '/desk'),
+				expectedHrefs: apps.map(a => frappe.app.sidebar.app_landing_route(a) || '/desk'),
 				selected: [...p.querySelectorAll('.cds--switcher__item-link--selected')].map(a => a.textContent.trim()),
 				groups: p.querySelectorAll('.cf-switcher__toggle').length,
 			};

@@ -1,6 +1,6 @@
 // Carbon v11 is square: every frappe / frappe-ui radius token collapses to 0.
 //
-// Three token families are squared here:
+// Two token families are squared here:
 //   1. `--radius` and its scale (`--radius-sm|md|lg|xl|2xl`, `--radius-0..9`) —
 //      Espresso v2's names (css/espresso/radius.css). One override point squares
 //      the desk and website: frappe wires Bootstrap's `$border-radius`,
@@ -9,9 +9,9 @@
 //      the numbered steps, and ~180 rules read bare `var(--radius)`. The same names
 //      are frappe-ui's Tailwind radius tokens, which the SPA apps
 //      (CRM/Helpdesk/Builder) consume via carbon_frappe_ui.bundle.
-//   2. `--border-radius*` — the pre-v16.50 names frappe still reads, kept as a shim
-//      (see below).
-//   3. Derived component radii, pinned so they cannot inherit a non-zero base.
+//      frappe's legacy `--border-radius*` names alias these (css/espresso/legacy.css),
+//      so they are square too.
+//   2. Derived component radii, pinned so they cannot inherit a non-zero base.
 //
 // The map layer is imported after frappe's espresso tokens, so these `:root`
 // declarations win the cascade.
@@ -51,19 +51,6 @@
 	--radius-2xl: 0;
 	--radius-9: 999px; // pill
 	--radius-full: 9999px; // pill / round avatar
-
-	// Shim: frappe v16.50 still READS `--border-radius`, `-sm`, `-md` and `-lg`
-	// (frappe's controls, card, search widget and form sidebar; erpnext, hrms and
-	// print_designer ~70 more sites) but no longer DECLARES them, and its legacy
-	// aliases do not map them onto the Espresso scale. Undeclared, `border-radius:
-	// var(--border-radius)` is invalid at computed-value time and falls back to
-	// square, which is what Carbon wants; a `var(--border-radius, 4px)` fallback or
-	// a frappe that declares the names again would not be. (`-tiny`, `-xl`, `-2xl`
-	// and `-full` have no readers left, so they are not carried.)
-	--border-radius: 0;
-	--border-radius-sm: 0;
-	--border-radius-md: 0;
-	--border-radius-lg: 0;
 
 	// Derived / component tokens, pinned explicitly so they can't inherit a
 	// non-zero base if frappe reorders its declarations:

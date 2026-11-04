@@ -245,18 +245,7 @@ export interface Shim {
  * nothing. The audit says so when frappe starts declaring one again, and when
  * nothing reads one any more.
  */
-export const SHIMS: readonly Shim[] = [
-	{ name: "--invert-neutral", readBy: "buttons, icons, desktop, form (renamed --neutral-invert upstream)" },
-	{ name: "--ink-white", readBy: "css/espresso/components/button.css `.es-button.btn-danger`" },
-	{ name: "--surface-modal", readBy: "scss/desk/card.scss `.frappe-card`" },
-	{
-		name: "--border-radius",
-		readBy: "frappe's controls, card, search widget, form sidebar; erpnext, hrms, print_designer",
-	},
-	{ name: "--border-radius-sm", readBy: "frappe's controls and form sidebar" },
-	{ name: "--border-radius-md", readBy: "frappe's controls, card, arrangement editor" },
-	{ name: "--border-radius-lg", readBy: "frappe's controls" },
-];
+export const SHIMS: readonly Shim[] = [];
 
 /** The semantic declarations of a stylesheet, name -> value, split by which theme block carries them. */
 export interface SemanticAliases {
