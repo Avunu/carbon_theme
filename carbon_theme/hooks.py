@@ -8,6 +8,18 @@ app_description = "IBM Carbon Design System theme for the Frappe desk, website, 
 app_email = "mail@avu.nu"
 app_license = "MIT"
 
+# Frappe's About dialog takes the logo from here. not_listed keeps the app off the apps screen.
+# app_logo_url would change the site's own logo.
+add_to_apps_screen = [
+	{
+		"name": "carbon_theme",
+		"logo": "/assets/carbon_theme/images/carbon_theme-logo.svg",
+		"title": "Carbon Theme for Frappe",
+		"route": "/desk",
+		"has_permission": "carbon_theme.apps_screen.not_listed",
+	}
+]
+
 # Theme CSS is delivered by shadowing frappe's own bundle names in assets.json
 # (desk/website/login/email .bundle.css), not via *_include_css hooks.
 # See build.py and scripts/patch-assets.ts.
