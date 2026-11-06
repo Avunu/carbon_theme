@@ -34,10 +34,10 @@
     hashery "^1.5.1"
     keyv "^5.6.0"
 
-"@carbon/ai-chat-components@1.13.0":
-  version "1.13.0"
-  resolved "https://registry.yarnpkg.com/@carbon/ai-chat-components/-/ai-chat-components-1.13.0.tgz#ac0f83bc0fe408c0793f85c409c13a1b6035c23e"
-  integrity sha512-M+L3/vhee5m47cVZZiu3zW5LVawdGwZqtEJyU9vzMWZM+FJVI3rBfvnANwppGGnWZMIKbTg7cs2OFB3ttWRYbw==
+"@carbon/ai-chat-components@1.14.0":
+  version "1.14.0"
+  resolved "https://registry.yarnpkg.com/@carbon/ai-chat-components/-/ai-chat-components-1.14.0.tgz#0cbf61204506a60217fa85572af7d2f6f4dcdc9b"
+  integrity sha512-LdcUK8Snvea9JpIDsFaDLOhwKNl+0Oihlg4L7tYVhE1/2yu5TpbZUPInT1t/7gIRhJAx3w07KtIAnHEhvgQzeQ==
   dependencies:
     "@carbon/icon-helpers" "^10.47.0"
     "@carbon/icons" "^11.53.0"
@@ -85,10 +85,10 @@
     "@tiptap/extensions" "^3.22.5"
     "@tiptap/pm" "^3.22.5"
     "@tiptap/suggestion" "^3.22.5"
-    dompurify "^3.4.13"
+    dompurify "^3.4.16"
     lit "^3.1.0"
     lodash-es "^4.18.1"
-    markdown-it "^14.3.0"
+    markdown-it "^14.3.3"
     tslib "^2.6.3"
 
 "@carbon/charts@1.27.25":
@@ -2239,7 +2239,7 @@ detect-libc@^2.0.3:
   resolved "https://registry.yarnpkg.com/detect-libc/-/detect-libc-2.1.2.tgz#689c5dcdc1900ef5583a4cb9f6d7b473742074ad"
   integrity sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==
 
-dompurify@^3.4.13, dompurify@^3.4.16:
+dompurify@^3.4.16:
   version "3.4.17"
   resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-3.4.17.tgz#074bbb24eaa419535ac19ffe7f663104b0e1543d"
   integrity sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==
@@ -2624,10 +2624,10 @@ lodash.truncate@^4.4.2:
   resolved "https://registry.yarnpkg.com/lodash.truncate/-/lodash.truncate-4.4.2.tgz#5a350da0b1113b837ecfffd5812cbe58d6eae193"
   integrity sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==
 
-markdown-it@^14.3.0:
-  version "14.3.2"
-  resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-14.3.2.tgz#eb41b5855120836603c33c1be4c92f58001f8a26"
-  integrity sha512-sHHjZ5fJKlgrG4qns2YwVcdNep35h5fERrfkD2YNsb9UFk0UIHarbiTaHKVMlPuWAoiilyK8Fv/jAm11slsY7Q==
+markdown-it@^14.3.3:
+  version "14.3.3"
+  resolved "https://registry.yarnpkg.com/markdown-it/-/markdown-it-14.3.3.tgz#15e6e145d20b1499a7b323bb14e21062690132d8"
+  integrity sha512-L//tDAkjTjJCU6pBUSBTgs3Kg4InVaZuUZog/b6V12UKhcDQ7S78877ibbCanRExwPuYP1CZD7Gd2dxSy1GXRg==
   dependencies:
     argparse "^2.0.1"
     entities "^4.5.0"

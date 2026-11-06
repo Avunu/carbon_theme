@@ -43,7 +43,7 @@
 		"upgrade": "npx npm-check-updates -u && yarn install && yarn build"
 	},
 	"dependencies": {
-		"@carbon/ai-chat-components": "1.13.0",
+		"@carbon/ai-chat-components": "1.14.0",
 		"@carbon/charts": "1.27.25",
 		"@carbon/styles": "1.118.0",
 		"@tanstack/table-core": "9.3.1",
