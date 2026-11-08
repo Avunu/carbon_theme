@@ -13,7 +13,7 @@
 //
 // The user's zone is where times are SHOWN, live (`Date.now()`) and restored alike:
 // frappe renders every datetime in it, not in the browser's.
-import { isRecord } from "./types.ts";
+import type { FrappeBootPartial } from "frappe-types";
 
 const DAY_MS = 86_400_000;
 const NAIVE = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?$/;
@@ -25,21 +25,18 @@ export interface TimeZones {
 	user?: string;
 }
 
-function nonEmptyString(value: unknown): string | undefined {
-	return typeof value === "string" && value !== "" ? value : undefined;
+function nonEmptyString(value: string | undefined): string | undefined {
+	return value !== "" ? value : undefined;
 }
 
 /**
- * The zones out of `frappe.boot`. `boot.time_zone` is `{system, user}` (frappe/boot.py
- * `set_time_zone`) but frappe-types does not declare it, so `boot` is read as `unknown`;
- * `boot.sysdefaults.time_zone` (declared) is the fallback for the system zone.
+ * The zones out of `frappe.boot`: `boot.time_zone` is `{system, user}` (frappe/boot.py
+ * `set_time_zone`), and `boot.sysdefaults.time_zone` is the fallback for the system zone.
+ * An empty name counts as missing.
  */
-export function readTimeZones(boot: unknown): TimeZones {
-	if (!isRecord(boot)) return {};
-	const declared = isRecord(boot["time_zone"]) ? boot["time_zone"] : {};
-	const defaults = isRecord(boot["sysdefaults"]) ? boot["sysdefaults"] : {};
-	const system = nonEmptyString(declared["system"]) ?? nonEmptyString(defaults["time_zone"]);
-	const user = nonEmptyString(declared["user"]) ?? system;
+export function readTimeZones(boot: FrappeBootPartial): TimeZones {
+	const system = nonEmptyString(boot.time_zone?.system) ?? nonEmptyString(boot.sysdefaults?.time_zone);
+	const user = nonEmptyString(boot.time_zone?.user) ?? system;
 	const zones: TimeZones = {};
 	if (system !== undefined) zones.system = system;
 	if (user !== undefined) zones.user = user;

@@ -14,6 +14,7 @@
 //
 // Ground truth: apps/flow/frontend/src/api/{client,stream}.js and flow/api/api.py.
 
+import type { FrappeResponse } from "frappe-types";
 import type { FlowEvent } from "./events.ts";
 import {
 	parseFlowRunDocs,
@@ -84,6 +85,14 @@ function cleanMessage(raw: string): string {
 		.trim();
 }
 
+/**
+ * A parsed `/api/method` body as frappe's envelope, or null when it is not an object. The keys are typed,
+ * but they came off the network, so each is still checked before it is used.
+ */
+function envelope(body: unknown): FrappeResponse | null {
+	return isRecord(body) ? body : null;
+}
+
 /** The first non-empty `message` of frappe's `_server_messages` (a JSON array of JSON strings). */
 function firstServerMessage(raw: unknown): string | null {
 	if (typeof raw !== "string") return null;
@@ -105,15 +114,16 @@ function firstServerMessage(raw: unknown): string | null {
  * ("frappe.exceptions.PermissionError", all a guest's 403 carries) says nothing, so it is null.
  */
 export function serverMessage(body: unknown): string | null {
-	if (!isRecord(body)) return null;
-	const fromMessages = firstServerMessage(body["_server_messages"]);
+	const response = envelope(body);
+	if (!response) return null;
+	const fromMessages = firstServerMessage(response._server_messages);
 	if (fromMessages !== null) return fromMessages;
-	const exception = body["exception"];
+	const { exception } = response;
 	if (typeof exception === "string") {
 		const stripped = cleanMessage(exception.replace(/^[\w.]+:\s+/, ""));
 		if (stripped !== "" && !/^\w+(\.\w+)+$/.test(stripped)) return stripped;
 	}
-	const fallback = body["_error_message"];
+	const fallback = response._error_message;
 	return typeof fallback === "string" && fallback !== "" ? fallback : null;
 }
 
@@ -138,7 +148,7 @@ type FailureText = (status: number, body: unknown) => string;
  */
 function uploadFailure(fallback: string, __: Translate): FailureText {
 	return (status, body) => {
-		const written = isRecord(body) ? firstServerMessage(body["_server_messages"]) : null;
+		const written = firstServerMessage(envelope(body)?._server_messages);
 		if (written !== null) return written;
 		if (status === 401 || status === 403) {
 			return __("Your session may have expired. Reload the page and try again.");
@@ -186,7 +196,7 @@ async function callMethod(
 ): Promise<unknown> {
 	const response = await postMethod(method, args, undefined, env, options);
 	const reply: unknown = await response.json().catch(() => undefined);
-	return isRecord(reply) ? reply["message"] : undefined;
+	return envelope(reply)?.message;
 }
 
 async function* streamMethod(
@@ -517,7 +527,7 @@ export async function uploadFile(
 				: __("Upload failed ({0})", [String(reply.status)]);
 		throw new FlowHttpError(uploadFailure(fallback, __)(reply.status, body), reply.status);
 	}
-	const message = isRecord(body) ? body["message"] : undefined;
+	const message = envelope(body)?.message;
 	if (!isRecord(message) || typeof message["name"] !== "string" || message["name"] === "") {
 		throw new Error(__("Unexpected response from the server."));
 	}
@@ -560,7 +570,7 @@ export async function attachFile(
 		failure: uploadFailure(__("The file could not be read."), __),
 	});
 	const reply: unknown = await response.json().catch(() => undefined);
-	const message = isRecord(reply) ? reply["message"] : undefined;
+	const message = envelope(reply)?.message;
 	if (!isRecord(message) || typeof message["file"] !== "string" || message["file"] === "") {
 		throw new Error(__("Unexpected response from the server."));
 	}

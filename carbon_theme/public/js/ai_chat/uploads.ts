@@ -10,6 +10,7 @@
 // flow/knowledge/extract.py (boot key `flow_supported_file_types`, checked against the NAME's extension
 // only), the size is frappe's `max_file_size` (`frappe.boot.max_file_size`, enforced by
 // `upload_file`), and flow has no count limit at all, so `MAX_ATTACHMENTS` is ours.
+import type { FrappeBootPartial } from "frappe-types";
 import type { AttachedFile, UploadedFile } from "./flow/client.ts";
 import type { FlowSessionAttachmentRow } from "./flow/docs.ts";
 import type { Translate } from "./i18n.ts";
@@ -46,12 +47,11 @@ export interface UploadLimits {
  * `flow_supported_file_types` (an older flow, or none of its boot hook), or the list is empty or not
  * a list of strings. A null result hides every attach affordance. Entries are lower-cased, stripped of a
  * leading dot, kept only when they are `[a-z0-9]+`, de-duplicated and sorted. `max_file_size` must be a
- * positive finite number, else `FALLBACK_MAX_FILE_BYTES`. `boot` is `unknown` because neither key is
- * declared in frappe-types for flow's list.
+ * positive finite number, else `FALLBACK_MAX_FILE_BYTES`. Flow's key is flow's own, not frappe's, so it
+ * comes through the boot's open index signature as `unknown` and is checked here.
  */
-export function readUploadLimits(boot: unknown): UploadLimits | null {
-	if (typeof boot !== "object" || boot === null) return null;
-	const listed: unknown = Reflect.get(boot, "flow_supported_file_types");
+export function readUploadLimits(boot: FrappeBootPartial): UploadLimits | null {
+	const listed = boot["flow_supported_file_types"];
 	if (!Array.isArray(listed)) return null;
 	const found = new Set<string>();
 	for (const entry of listed) {
@@ -60,9 +60,9 @@ export function readUploadLimits(boot: unknown): UploadLimits | null {
 		if (/^[a-z0-9]+$/.test(extension)) found.add(extension);
 	}
 	if (found.size === 0) return null;
-	const size: unknown = Reflect.get(boot, "max_file_size");
+	const size = boot.max_file_size;
 	const maxFileBytes =
-		typeof size === "number" && Number.isFinite(size) && size > 0 ? size : FALLBACK_MAX_FILE_BYTES;
+		size !== undefined && Number.isFinite(size) && size > 0 ? size : FALLBACK_MAX_FILE_BYTES;
 	return { extensions: [...found].sort(), maxFileBytes, maxFiles: MAX_ATTACHMENTS };
 }
 

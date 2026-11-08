@@ -7,6 +7,7 @@
 // This file ships in the always-loaded carbon_anatomy bundle, which frappe builds with
 // its own esbuild (0.14.x). Write nothing that esbuild cannot parse: no `satisfies`, no
 // `accessor`, no `using`. The chat module is only named by type (erased), never imported.
+import type { FrappeBootPartial } from "frappe-types";
 import type { ChatModule } from "../../ai_chat/entry.ts";
 
 /** The app whose `frappe.boot.versions` entry switches the feature on. */
@@ -38,13 +39,8 @@ function parseJson(raw: string | null | undefined): unknown {
 
 // -- gate ---------------------------------------------------------------------
 
-export interface GateBoot {
-	versions?: Record<string, string>;
-	read_only?: boolean;
-}
-
 /** Flow is installed (and the site is not read-only, where flow could not write its sessions). */
-export function shouldMountAssistant(boot: GateBoot | null | undefined): boolean {
+export function shouldMountAssistant(boot: FrappeBootPartial | null | undefined): boolean {
 	if (!boot || boot.read_only === true) return false;
 	const version = boot.versions ? boot.versions[FLOW_APP] : undefined;
 	return typeof version === "string" && version !== "";
