@@ -15,9 +15,13 @@ Object.assign(globalThis, {
 	window: globalThis,
 	location: { pathname: "/" },
 	__: (s: string) => s,
-	cint: (v: unknown) => {
-		const n = parseInt(String(v), 10);
-		return Number.isNaN(n) ? 0 : n;
+	// datatype.js:9-17: leading zeros are stripped before parseInt, so "00" and
+	// "0.0" miss and fall back to the default
+	cint: (v: unknown, def?: number | null) => {
+		let s = String(v);
+		if (s !== "0") s = s.replace(/^0+/, "");
+		const n = parseInt(s, 10);
+		return Number.isNaN(n) ? (def === undefined ? 0 : def) : n;
 	},
 	// the system number format is `#,###.##`
 	strip_number_groups: (v: string) => v.replace(/,/g, ""),
