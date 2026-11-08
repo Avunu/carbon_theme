@@ -135,8 +135,11 @@ describe("columnField", () => {
 	});
 	it("treats a Query Report column, which has no docfield, as its own field", () => {
 		const column = { id: "valuation_rate", fieldname: "valuation_rate", fieldtype: "Currency" };
-		assert.equal(columnField(column), column);
+		assert.deepEqual(columnField(column), { fieldtype: "Currency" });
 		assert.equal(coerceForPaste(columnField(column)!, "12.50"), 12.5);
+		const select = { id: "status", fieldtype: "Select", options: "Open\nClosed" };
+		assert.deepEqual(columnField(select), { fieldtype: "Select", options: "Open\nClosed" });
+		assert.equal(coerceForPaste(columnField(select)!, "closed"), "Closed");
 	});
 	it("has no field for a standard column or a missing one", () => {
 		assert.equal(columnField({ id: "_rowIndex" }), undefined);

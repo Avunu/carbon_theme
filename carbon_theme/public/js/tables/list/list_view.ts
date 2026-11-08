@@ -36,13 +36,8 @@ import type { FrappeListDoc, ListColumn, ListView } from "frappe-types";
 // `ListView` rather than declared here — that is what the empty
 // `export interface ListView<TColumn = ListColumn> {}` in the typeset's
 // views.d.ts exists for, and it is what keeps `this.carbon_table` a real
-// property on the instance the patches below run against.
-//
-// The specifier is the package ROOT, not the `frappe-types/views` its own doc
-// comment suggests: the package's `exports` map publishes only `.`, `./global`,
-// `./modules` and `./deep-modules`, so `"frappe-types/views"` does not resolve
-// and the augmentation is TS2664. Augmenting the root reaches the same
-// declaration through its `export { ListView } from "./views"`.
+// property on the instance the patches below run against. The specifier is the
+// package root, as frappe-types' own example augments it.
 declare module "frappe-types" {
 	interface ListView<TColumn = ListColumn> {
 		/**

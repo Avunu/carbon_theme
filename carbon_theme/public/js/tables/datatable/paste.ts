@@ -47,6 +47,9 @@ import type {
 	DocField,
 } from "frappe-types";
 
+/** What a paste reads of a column's field: its type, and a Select's options. */
+export type PasteField = Pick<DocField, "fieldtype" | "options">;
+
 export interface PasteResult {
 	/** Cells whose write stuck. */
 	pasted: number;
@@ -100,7 +103,7 @@ const INT_RE = /^[+-]?\d+(\.0+)?$/;
 const FLOAT_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 const COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-function selectOptions(df: DocField): string[] {
+function selectOptions(df: PasteField): string[] {
 	const options = df.options;
 	if (typeof options === "string") return options.split("\n");
 	if (!Array.isArray(options)) return [];
@@ -139,7 +142,7 @@ function systemDate(t: string, kind: "Date" | "Datetime" | "Time"): string | und
  * An empty string is the type's empty (`0` for the numeric family and Check,
  * `""` otherwise), so clearing cells by pasting blanks works.
  */
-export function coerceForPaste(df: DocField, text: string): DataTableCellValue | undefined {
+export function coerceForPaste(df: PasteField, text: string): DataTableCellValue | undefined {
 	const type = df.fieldtype;
 	if (REFUSED.has(type)) return undefined;
 	const t = text.trim();
@@ -157,7 +160,7 @@ export function coerceForPaste(df: DocField, text: string): DataTableCellValue |
 			if (t === "") return 0;
 			const s = numeric(t, INT_RE);
 			if (s === null) return undefined;
-			const n = cint(s, null);
+			const n = cint(s);
 			if (type === "Duration" && n < 0) return undefined;
 			return n;
 		}
@@ -204,11 +207,12 @@ export function coerceForPaste(df: DocField, text: string): DataTableCellValue |
  * column dict (query_report.js:1513), so `fieldtype`/`options` sit on the
  * column. Without this every Query Report paste was counted as skipped.
  */
-export function columnField(column: DataTableColumn | undefined): DocField | undefined {
+export function columnField(column: DataTableColumn | undefined): PasteField | undefined {
 	if (!column) return undefined;
 	if (column.docfield) return column.docfield;
-	const own = column as unknown as Partial<DocField>;
-	return typeof own.fieldtype === "string" ? (own as DocField) : undefined;
+	const { fieldtype, options } = column;
+	if (typeof fieldtype !== "string") return undefined;
+	return options === undefined ? { fieldtype } : { fieldtype, options };
 }
 
 /**

@@ -109,11 +109,6 @@ interface SavedGridColumn {
 	columns: number;
 }
 
-/** A plain object, so its keys can be read without a cast. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
 /**
  * The inner width of the scroll viewport in whole px, rounded DOWN: columns
  * that add up to this never overflow it, where `clientWidth` (rounded to the
@@ -426,11 +421,8 @@ export default class CarbonGrid extends Grid {
 	saved_columns(): Record<string, SavedGridColumn> {
 		const out: Record<string, SavedGridColumn> = {};
 		if (!this.frm || !this.doctype) return out;
-		const view = frappe.get_user_settings(this.frm.doctype, "GridView");
-		const rows = view[this.doctype];
-		if (!Array.isArray(rows)) return out;
+		const rows = frappe.get_user_settings(this.frm.doctype, "GridView")[this.doctype] ?? [];
 		for (const row of rows) {
-			if (!isRecord(row) || typeof row.fieldname !== "string") continue;
 			out[row.fieldname] = { width: cint(row.width), columns: cint(row.columns) };
 		}
 		return out;

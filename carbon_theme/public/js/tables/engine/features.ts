@@ -36,6 +36,7 @@ import {
 	tableFeatures,
 } from "@tanstack/table-core";
 import { storeReactivityBindings } from "@tanstack/table-core/store-reactivity-bindings";
+import type { DataTableGuessedFilter } from "frappe-types";
 
 /**
  * The slice of a TanStack `Row` these functions read.
@@ -103,18 +104,10 @@ function stripHTML(s: unknown): string {
 }
 
 /**
- * One parsed inline filter. The `text` type varies by branch — `equals` and
- * `notEquals` compare numerically, `range` carries its two ends — so this is a
- * union discriminated on `type` rather than one shape with a widened `text`.
+ * One parsed inline filter: frappe-datatable's `guessFilter` result without its
+ * empty `{}` arm, which this port returns as `null` instead.
  */
-export type FrappeInlineFilter =
-	| { type: "greaterThan"; text: string }
-	| { type: "lessThan"; text: string }
-	| { type: "equals"; text: number }
-	| { type: "notEquals"; text: number }
-	| { type: "containsNumber"; text: string }
-	| { type: "range"; text: [string, string] }
-	| { type: "contains"; text: string };
+export type FrappeInlineFilter = Exclude<DataTableGuessedFilter, { type?: undefined }>;
 
 /**
  * Reproduce frappe-datatable's inline-filter grammar (datatable/src/filterRows.js
