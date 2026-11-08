@@ -53,7 +53,7 @@
 // Expansion is remembered for the session, and the group holding the current
 // shell's icon opens itself on every render — the panel is rebuilt on each
 // `project()`, and a fresh one should show where the user is.
-import type { FrappeDesktopIconRecord, FrappeModuleSidebar } from "frappe-types";
+import type { FrappeDesktopIconRecord } from "frappe-types";
 import type { ShellModel } from "./model.ts";
 import { buildAppsTree, buildDesktopTree } from "./desktop.ts";
 import type { DesktopEntry, IconRoute } from "./desktop.ts";
@@ -79,12 +79,6 @@ function translate(s: string): string {
 	return typeof __ === "function" ? __(s) : s;
 }
 
-/** `Utils.sidebar_for_module` (utils.js:1400-1404): the shell is its module's own key, else the one whose `module` it is. */
-function shellFor(module: string): FrappeModuleSidebar | undefined {
-	const all = frappe.boot.module_sidebars || {};
-	return all[module] || Object.values(all).find((entry) => entry.module === module);
-}
-
 /**
  * The icon grid's `get_route` (desktop_icons.bundle.js:74-88): an External link is
  * absolute (a relative one gets the origin), a Workspace Sidebar icon opens its
@@ -99,7 +93,7 @@ function iconRoute(icon: FrappeDesktopIconRecord): IconRoute | null {
 	}
 	if (icon.link_type === "Workspace Sidebar") {
 		const sidebar = frappe.app && frappe.app.sidebar;
-		const shell = shellFor(icon.module || icon.label);
+		const shell = frappe.utils.sidebar_for_module(icon.module || icon.label);
 		const href = shell && sidebar ? sidebar.module_landing_route(shell.name) : null;
 		if (shell && href) return { href, shell: shell.name };
 	}

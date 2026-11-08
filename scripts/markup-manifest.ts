@@ -843,7 +843,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/bootinfo\.module_sidebars = get_module_sidebars\(\)/,
 	],
 	[
-		"a module_sidebars entry carries name, module, label and app (header name, switcher's shellFor, get_sidebar_app)",
+		"a module_sidebars entry carries name, module, label and app (header name, the switcher's icon routes, get_sidebar_app)",
 		"frappe/desk/doctype/sidebar/sidebar.py",
 		/def as_boot_entry\(self\)[\s\S]{0,400}?"name": self\.name,\s*"module": self\.module,\s*"label": self\.label,\s*"app": self\.app,/,
 	],
@@ -931,7 +931,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/function get_route\(desktop_icon\)\s*\{[\s\S]{0,300}?link_type == "External"[\s\S]{0,300}?link_type == "Workspace Sidebar"[\s\S]{0,300}?module_landing_route\(sidebar\.name\)/,
 	],
 	[
-		"frappe.utils.sidebar_for_module: the shell is its module's own key, else the one whose `module` it is (the switcher's shellFor)",
+		"frappe.utils.sidebar_for_module: the shell is its module's own key, else the one whose `module` it is (the switcher resolves icons with it)",
 		"frappe/public/js/frappe/utils/utils.js",
 		/sidebar_for_module\(module\)\s*\{\s*if \(!module\) return undefined;\s*const all = frappe\.boot\.module_sidebars \|\| \{\};\s*return all\[module\] \|\| Object\.values\(all\)\.find\(\(entry\) => entry\.module === module\)/,
 	],
