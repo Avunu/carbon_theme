@@ -43,9 +43,9 @@ import type {
 	DataTableColumn,
 	DataTableEditor,
 	DataTableRowIndex,
-	DataTableSelectionBounds,
 	DocField,
 } from "frappe-types";
+import type { DataTableSelectionBounds } from "./navigation.ts";
 
 /** What a paste reads of a column's field: its type, and a Select's options. */
 export type PasteField = Pick<DocField, "fieldtype" | "options">;

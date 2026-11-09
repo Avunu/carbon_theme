@@ -26,14 +26,11 @@
 // typed honestly and called out in a comment rather than papered over.
 //
 // This file has no runtime imports on purpose. `host.navigation` and
-// `host.editing` are typed from frappe-types' declarations of carbon_theme's
-// own `CellNavigation` / `CellEditing` rather than from ./navigation and
-// ./editing, which keeps the module graph acyclic: ./classes and ./navigation
-// import FROM here, never the other way round.
+// `host.editing` are typed through type-only imports of ./navigation and
+// ./editing, which erase, so the runtime module graph stays acyclic:
+// ./classes and ./navigation import FROM here, never the other way round.
 
 import type {
-	CellEditing,
-	CellNavigation,
 	DataTableAppliedFilters,
 	DataTableCell,
 	DataTableCellInput,
@@ -53,6 +50,8 @@ import type {
 	DataTableSortOrder,
 	DataTableStyleObject,
 } from "frappe-types";
+import type CellEditing from "./editing.ts";
+import type CellNavigation from "./navigation.ts";
 
 // --------------------------------------------------------------------- types
 

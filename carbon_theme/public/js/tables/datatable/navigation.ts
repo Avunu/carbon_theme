@@ -45,12 +45,25 @@ import { inMultilineEditor } from "./editing.ts";
 import type { CarbonDataTableHost } from "./managers.ts";
 import { pasteIntoSelection, writeCell } from "./paste.ts";
 import type { PasteResult } from "./paste.ts";
-import type {
-	DataTableColIndex,
-	DataTableFocusedCell,
-	DataTableRowIndex,
-	DataTableSelectionBounds,
-} from "frappe-types";
+import type { DataTableColIndex, DataTableRowIndex } from "frappe-types";
+
+/** A focused or cursor cell address. */
+export interface DataTableFocusedCell {
+	colIndex: DataTableColIndex;
+	rowIndex: DataTableRowIndex;
+}
+
+/**
+ * The selection rectangle in mixed coordinates: `c1`/`c2` are COLUMN indices,
+ * `p1`/`p2` are POSITIONS in the current view order, not row indices, because
+ * the rectangle must stay contiguous on screen after a sort.
+ */
+export interface DataTableSelectionBounds {
+	c1: DataTableColIndex;
+	c2: DataTableColIndex;
+	p1: number;
+	p2: number;
+}
 
 /** The four directions {@link CellNavigation.move} understands. */
 export type CellNavigationDirection = "left" | "right" | "up" | "down";

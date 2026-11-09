@@ -19,8 +19,6 @@
 // so all of an adapter's legacy naming lives in one readable file next to that
 // adapter, and the engine never accumulates per-surface special cases.
 
-import type { CarbonDataTableDomClass } from "frappe-types";
-
 export const CARBON = {
 	container: "cds--data-table-container",
 	content: "cds--data-table-content",
@@ -77,10 +75,55 @@ export type CarbonClassKey = keyof typeof CARBON;
 export type CarbonClassName = (typeof CARBON)[CarbonClassKey];
 
 /**
+ * The Carbon Design System classes the engine emits alongside frappe-datatable's
+ * `dt-*` contract: a report written against frappe-datatable keeps matching
+ * `.dt-*`, while Carbon's stylesheet matches `.cds--*` on the same nodes.
+ * `cds--data-table--sticky-header` is deliberately absent (see the note on
+ * {@link CARBON}).
+ */
+type CarbonDataTableDomClass =
+	| "cds--data-table"
+	| "cds--data-table-container"
+	| "cds--data-table-content"
+	| `cds--data-table--${"xs" | "sm" | "md" | "lg" | "xl"}`
+	| "cds--data-table--sort"
+	| "cds--data-table--selected"
+	| "cds--table-sort"
+	| "cds--table-sort--active"
+	| "cds--table-sort--descending"
+	| "cds--table-sort__flex"
+	| "cds--table-sort__icon"
+	| "cds--table-sort__icon-unsorted"
+	| "cds--table-sort__header"
+	| "cds--table-header-label"
+	| "cds--table-toolbar"
+	| "cds--toolbar-content"
+	| "cds--toolbar-action"
+	| "cds--action-list"
+	| "cds--batch-actions"
+	| "cds--batch-actions--active"
+	| "cds--batch-summary"
+	| "cds--batch-summary__para"
+	| "cds--parent-row"
+	| "cds--child-row"
+	| "cds--child-row-inner-container"
+	| "cds--expandable-row"
+	| "cds--expandable-row--hover"
+	| "cds--table-expand"
+	| "cds--table-expand__button"
+	| "cds--table-expand__svg"
+	| "cds--table-column-menu"
+	| "cds--overflow-menu--data-table"
+	| "cds--toolbar-search-container-expandable"
+	| "cds--toolbar-search-container-active"
+	| "cds--pagination"
+	| "cds--skeleton";
+
+/**
  * The conformance half of what a `satisfies` clause would have done for
- * {@link CARBON}: every value must be a class name frappe-types records for
- * this app's markup. A typo here is a silent visual regression, so it is worth
- * checking even at the cost of the ceremony below.
+ * {@link CARBON}: every value must be one of the class names in
+ * `CarbonDataTableDomClass` above. A typo here is a silent visual regression,
+ * so it is worth checking even at the cost of the ceremony below.
  *
  * Written as a type-level assertion because it must ERASE — see the note on
  * `CARBON` about esbuild 0.14.54. The tuple wrappers stop the conditional from
