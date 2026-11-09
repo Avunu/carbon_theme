@@ -48,6 +48,12 @@ describe("coerceForPaste", () => {
 		assert.equal(coerceForPaste(df("Duration"), "-5"), undefined);
 		assert.equal(coerceForPaste(df("Rating"), "1.5"), undefined);
 	});
+	it("pastes a zero with leading zeros or a zero fraction as 0, not as a cleared cell", () => {
+		for (const t of ["00", "000", "0.0", "0.00"]) {
+			assert.equal(coerceForPaste(df("Int"), t), 0);
+			assert.equal(coerceForPaste(df("Duration"), t), 0);
+		}
+	});
 	it("accepts dates in the system format and in the user's, refusing the rest", () => {
 		assert.equal(coerceForPaste(df("Date"), "2026-09-16"), "2026-09-16");
 		assert.equal(coerceForPaste(df("Date"), "16-09-2026"), "2026-09-16");
@@ -135,8 +141,11 @@ describe("columnField", () => {
 	});
 	it("treats a Query Report column, which has no docfield, as its own field", () => {
 		const column = { id: "valuation_rate", fieldname: "valuation_rate", fieldtype: "Currency" };
-		assert.equal(columnField(column), column);
+		assert.deepEqual(columnField(column), { fieldtype: "Currency" });
 		assert.equal(coerceForPaste(columnField(column)!, "12.50"), 12.5);
+		const select = { id: "status", fieldtype: "Select", options: "Open\nClosed" };
+		assert.deepEqual(columnField(select), { fieldtype: "Select", options: "Open\nClosed" });
+		assert.equal(coerceForPaste(columnField(select)!, "closed"), "Closed");
 	});
 	it("has no field for a standard column or a missing one", () => {
 		assert.equal(columnField({ id: "_rowIndex" }), undefined);

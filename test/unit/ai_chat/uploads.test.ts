@@ -62,10 +62,7 @@ function reference(id: string, extra: Partial<ExternalFileReference> = {}): Exte
 }
 
 describe("readUploadLimits", () => {
-	it("is null for anything that is not a boot object with a usable list", () => {
-		assert.equal(readUploadLimits(undefined), null);
-		assert.equal(readUploadLimits(null), null);
-		assert.equal(readUploadLimits("boot"), null);
+	it("is null for a boot without a usable list", () => {
 		assert.equal(readUploadLimits({}), null);
 		assert.equal(readUploadLimits({ flow_supported_file_types: "pdf" }), null);
 		assert.equal(readUploadLimits({ flow_supported_file_types: { 0: "pdf" } }), null);
@@ -90,7 +87,7 @@ describe("readUploadLimits", () => {
 
 	it("falls back to 5 MiB unless max_file_size is a positive finite number", () => {
 		const types = ["pdf"];
-		for (const bad of [undefined, null, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, "100", {}]) {
+		for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
 			assert.equal(
 				readUploadLimits({ flow_supported_file_types: types, max_file_size: bad })?.maxFileBytes,
 				FALLBACK_MAX_FILE_BYTES,

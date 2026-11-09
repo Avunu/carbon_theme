@@ -68,9 +68,7 @@ function localeOf(tag: string | undefined): string {
 export function mountChat(options: ChatMountOptions): ChatHandle {
 	const translate = options.translate ?? globalTranslate();
 	const store = createChatStore();
-	// frappe.boot.time_zone is not in frappe-types; readTimeZones reads it as unknown.
 	const zones = readTimeZones(frappe.boot);
-	// flow_supported_file_types is flow's boot key, which frappe-types does not declare.
 	const uploadLimits = readUploadLimits(frappe.boot);
 	const locale = localeOf(frappe.boot.lang);
 	const controller = createController({
