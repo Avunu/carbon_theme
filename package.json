@@ -44,14 +44,14 @@
 	},
 	"dependencies": {
 		"@carbon/ai-chat-components": "1.14.0",
-		"@carbon/charts": "1.27.25",
-		"@carbon/styles": "1.118.0",
+		"@carbon/charts": "1.27.27",
+		"@carbon/styles": "1.119.0",
 		"@tanstack/table-core": "9.3.1",
-		"@tanstack/virtual-core": "3.19.10"
+		"@tanstack/virtual-core": "3.19.11"
 	},
 	"devDependencies": {
-		"@carbon/icon-helpers": "^10.84.0",
-		"@carbon/icons": "11.91.0",
+		"@carbon/icon-helpers": "^10.85.0",
+		"@carbon/icons": "11.92.0",
 		"@ibm/plex-mono": "2.5.0",
 		"@ibm/plex-sans": "1.1.0",
 		"@types/node": "^26.6.6",
@@ -60,7 +60,7 @@
 		"frappe-types": "^16.6.0",
 		"oxfmt": "^0.75.0",
 		"oxlint": "^1.90.0",
-		"sass": "1.107.1",
+		"sass": "1.108.0",
 		"stylelint": "^17.16.0",
 		"stylelint-config-standard-scss": "^17.0.0",
 		"typescript": "^7.0.2"
