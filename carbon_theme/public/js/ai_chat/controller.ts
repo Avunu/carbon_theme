@@ -15,6 +15,7 @@
 //   error     hydration failed (`error.errorType === "HYDRATION"`); a turn that fails
 //             stays in `ready` and shows an inline_error item instead. A switch that
 //             fails goes back to whatever it left: `ready`, or this error again.
+import type { FrappeFileDoc } from "frappe-types";
 import { AGENT_KEY, SESSION_KEY } from "./storage_keys.ts";
 import type { FlowEvent, FlowQuestion, ToolEndedEvent } from "./flow/events.ts";
 import type { FlowRunDoc, FlowSessionDoc, FlowSessionSummary } from "./flow/docs.ts";
@@ -25,7 +26,6 @@ import type {
 	StartRunParams,
 	UploadEnv,
 	UploadOptions,
-	UploadedFile,
 } from "./flow/client.ts";
 import {
 	FlowHttpError,
@@ -93,7 +93,7 @@ export interface FlowClient {
 	/** Deletes the session and (server-side, `on_trash`) its runs. Owner-only; the server enforces it. */
 	deleteSession(name: string): Promise<void>;
 	/** Uploads a private File with progress; see `flow/client.ts` `uploadFile` for the rejections. */
-	uploadFile(file: File, options?: UploadOptions): Promise<UploadedFile>;
+	uploadFile(file: File, options?: UploadOptions): Promise<FrappeFileDoc>;
 	/** Has flow validate the upload and extract its text; see `attachFile`. Rejects with `AbortError` on `signal`. */
 	attachFile(fileDoc: string, signal?: AbortSignal): Promise<AttachedFile>;
 	/** Best-effort removal of an unsent upload. A 404 resolves; other failures reject. `keepalive`: survives the page. */
