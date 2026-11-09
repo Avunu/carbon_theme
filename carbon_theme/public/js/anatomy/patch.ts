@@ -12,7 +12,15 @@
 // scripts/audit-markup.ts guards the same targets statically at build time;
 // this is the runtime half.
 
-import type { CarbonFrappeBrand } from "frappe-types";
+/**
+ * The `__carbon_frappe` idempotency brand this app stamps on foreign objects.
+ * Two value types, deliberately: `true` on a class object
+ * (`frappe.Chart.__carbon_frappe = true`, carbon_charts.bundle.ts) and on a
+ * frappe namespace object (`frappe.form.formatters`, carbon_desk.bundle.ts),
+ * and a string patch id on a wrapped function (`safePatch` below). Every read
+ * site is a truthiness test, so the union costs nothing.
+ */
+export type CarbonFrappeBrand = string | true;
 
 declare global {
 	// The `__carbon_frappe` marker has to live on the patched function itself,
@@ -23,9 +31,9 @@ declare global {
 	//
 	// `Function` is the right carrier because `safePatch` only ever stamps a
 	// method it has already proved to be a function. The two non-method stamps
-	// are already reachable without it: frappe-types declares the marker on
-	// `FrappeChartConstructor`, and `FrappeFormatters` carries an index
-	// signature that admits it.
+	// are already reachable without it: `FrappeChartConstructor` has a
+	// construct signature, so it picks up this `Function` member too, and
+	// `FrappeFormatters` carries an index signature that admits it.
 	interface Function {
 		/**
 		 * The patch id, when carbon_theme wrapped this function. Read as a
