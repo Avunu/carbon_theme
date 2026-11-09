@@ -10,8 +10,8 @@
 // flow/knowledge/extract.py (boot key `flow_supported_file_types`, checked against the NAME's extension
 // only), the size is frappe's `max_file_size` (`frappe.boot.max_file_size`, enforced by
 // `upload_file`), and flow has no count limit at all, so `MAX_ATTACHMENTS` is ours.
-import type { FrappeBootPartial } from "frappe-types";
-import type { AttachedFile, UploadedFile } from "./flow/client.ts";
+import type { FrappeBootPartial, FrappeFileDoc } from "frappe-types";
+import type { AttachedFile } from "./flow/client.ts";
 import type { FlowSessionAttachmentRow } from "./flow/docs.ts";
 import type { Translate } from "./i18n.ts";
 import { isExternalFileReference, isRecord } from "./types.ts";
@@ -374,7 +374,7 @@ export function fileFieldFor(reference: ExternalFileReference): StructuredField 
  */
 export function referenceFor(
 	attached: AttachedFile,
-	uploaded: UploadedFile,
+	uploaded: FrappeFileDoc,
 	file: File,
 ): ExternalFileReference {
 	return {

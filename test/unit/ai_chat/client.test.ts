@@ -791,19 +791,14 @@ const DOC = {
 };
 
 describe("uploadFile", () => {
-	it("posts the file privately with the CSRF header and maps the File doc", async () => {
+	it("posts the file privately with the CSRF header and returns the File doc", async () => {
 		const h = uploadHarness();
 		h.reply = replyWith(200, { message: DOC });
 		const file = new File(["hello"], "CF AI Test notes.txt", { type: "text/plain" });
 
 		const uploaded = await uploadFile(file, {}, h.env);
 
-		assert.deepEqual(uploaded, {
-			name: "49ec5dd196",
-			fileName: "CF AI Test notes.txt",
-			fileUrl: "/private/files/CF AI Test notes.txt",
-			fileSize: 16,
-		});
+		assert.deepEqual(uploaded, DOC);
 		assert.equal(h.posts.length, 1);
 		const [post] = h.posts;
 		assert.equal(post?.url, "/api/method/upload_file");
@@ -814,17 +809,6 @@ describe("uploadFile", () => {
 		assert.equal(await sent.text(), "hello");
 		assert.equal(post?.body.get("is_private"), "1");
 		assert.deepEqual([...(post?.body.keys() ?? [])].sort(), ["file", "is_private"]);
-	});
-
-	it("falls back to the file's name and null for a url and size the server left out", async () => {
-		const h = uploadHarness();
-		h.reply = replyWith(200, { message: { name: "x1", file_name: "", file_url: "", file_size: "big" } });
-		assert.deepEqual(await uploadFile(new File(["a"], "a.txt"), {}, h.env), {
-			name: "x1",
-			fileName: "a.txt",
-			fileUrl: null,
-			fileSize: null,
-		});
 	});
 
 	it("hands the signal and the progress callback to the transport", async () => {

@@ -10,12 +10,12 @@ import type {
 	ControllerStorage,
 	FlowClient,
 } from "../../../carbon_theme/public/js/ai_chat/controller.ts";
+import type { FrappeFileDoc } from "frappe-types";
 import { FlowHttpError } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
 import type {
 	AttachedFile,
 	StartRunParams,
 	UploadOptions,
-	UploadedFile,
 } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
 import type { FlowEvent } from "../../../carbon_theme/public/js/ai_chat/flow/events.ts";
 import type {
@@ -178,7 +178,7 @@ function held<T>(): Held<T> {
 }
 
 /** One `uploadFile` call, held until the test settles it. */
-interface UploadCall extends Held<UploadedFile> {
+interface UploadCall extends Held<FrappeFileDoc> {
 	file: File;
 	options: UploadOptions;
 }
@@ -322,7 +322,7 @@ function fakeClient(): FakeClient {
 			if (client.deleteFails) throw client.deleteFails;
 		},
 		uploadFile(file, options = {}) {
-			const call: UploadCall = { ...held<UploadedFile>(), file, options };
+			const call: UploadCall = { ...held<FrappeFileDoc>(), file, options };
 			client.uploadCalls.push(call);
 			options.signal?.addEventListener("abort", () => {
 				if (client.abortRejects) call.reject(abortError());
@@ -2451,8 +2451,20 @@ function txt(name: string, size = 10, lastModified = 1, type = ""): File {
 	return new File(["x".repeat(size)], name, { lastModified, type });
 }
 
-function uploadedDoc(name: string, fileName = "a.txt"): UploadedFile {
-	return { name, fileName, fileUrl: `/private/files/${fileName}`, fileSize: 10 };
+function uploadedDoc(name: string, fileName = "a.txt"): FrappeFileDoc {
+	return {
+		doctype: "File",
+		name,
+		file_name: fileName,
+		file_url: `/private/files/${fileName}`,
+		file_size: 10,
+		is_private: 1,
+		is_home_folder: 0,
+		is_attachments_folder: 0,
+		is_folder: 0,
+		uploaded_to_dropbox: 0,
+		uploaded_to_google_drive: 0,
+	};
 }
 
 function attachedDoc(name: string, fileName = "a.txt", fileSize = 10): AttachedFile {

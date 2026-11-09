@@ -3,7 +3,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { AttachedFile, UploadedFile } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
+import type { FrappeFileDoc } from "frappe-types";
+import type { AttachedFile } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
 import type { FlowSessionAttachmentRow } from "../../../carbon_theme/public/js/ai_chat/flow/docs.ts";
 import {
 	FALLBACK_MAX_FILE_BYTES,
@@ -567,7 +568,18 @@ describe("transferProgress", () => {
 });
 
 describe("referenceFor", () => {
-	const uploaded: UploadedFile = { name: "abc123", fileName: "ignored.txt", fileUrl: null, fileSize: 99 };
+	const uploaded: FrappeFileDoc = {
+		doctype: "File",
+		name: "abc123",
+		file_name: "ignored.txt",
+		file_size: 99,
+		is_private: 1,
+		is_home_folder: 0,
+		is_attachments_folder: 0,
+		is_folder: 0,
+		uploaded_to_dropbox: 0,
+		uploaded_to_google_drive: 0,
+	};
 	const attached: AttachedFile = { file: "abc123", fileName: "Report.txt", fileSize: 42 };
 
 	it("names the File doc and takes name and size from flow", () => {

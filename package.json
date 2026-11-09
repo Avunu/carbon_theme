@@ -57,7 +57,7 @@
 		"@types/node": "^26.6.6",
 		"@types/react": "^19.3.0",
 		"esbuild": "0.28.2",
-		"frappe-types": "^16.6.0",
+		"frappe-types": "^16.7.1",
 		"oxfmt": "^0.76.0",
 		"oxlint": "^1.91.0",
 		"sass": "1.107.1",

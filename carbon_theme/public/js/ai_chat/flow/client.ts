@@ -14,7 +14,7 @@
 //
 // Ground truth: apps/flow/frontend/src/api/{client,stream}.js and flow/api/api.py.
 
-import type { FrappeResponse } from "frappe-types";
+import type { FrappeFileDoc, FrappeResponse } from "frappe-types";
 import type { FlowEvent } from "./events.ts";
 import {
 	parseFlowRunDocs,
@@ -466,16 +466,6 @@ export function defaultUploadEnv(): UploadEnv {
 	};
 }
 
-/** `POST /api/method/upload_file` returns the new `File` doc as `message`; these are the fields read from it. */
-export interface UploadedFile {
-	/** The File doc name: what `attach_file` and `start_run`'s `attachments` take. */
-	name: string;
-	fileName: string;
-	/** `/private/files/<name>` for a private upload; null when frappe sent none. */
-	fileUrl: string | null;
-	fileSize: number | null;
-}
-
 export interface UploadOptions {
 	signal?: AbortSignal;
 	onProgress?: (progress: UploadProgress) => void;
@@ -500,7 +490,7 @@ export async function uploadFile(
 	file: File,
 	options: UploadOptions = {},
 	env: UploadEnv = defaultUploadEnv(),
-): Promise<UploadedFile> {
+): Promise<FrappeFileDoc> {
 	const __ = env.translate;
 	const { signal } = options;
 	if (signal?.aborted) throw abortError();
@@ -527,19 +517,12 @@ export async function uploadFile(
 				: __("Upload failed ({0})", [String(reply.status)]);
 		throw new FlowHttpError(uploadFailure(fallback, __)(reply.status, body), reply.status);
 	}
-	const message = envelope(body)?.message;
-	if (!isRecord(message) || typeof message["name"] !== "string" || message["name"] === "") {
+	// `upload_file` returns the new File doc as `message`.
+	const message = envelope(body)?.message as Partial<FrappeFileDoc> | null | undefined;
+	if (typeof message?.name !== "string" || message.name === "") {
 		throw new Error(__("Unexpected response from the server."));
 	}
-	const fileName = message["file_name"];
-	const fileUrl = message["file_url"];
-	const fileSize = message["file_size"];
-	return {
-		name: message["name"],
-		fileName: typeof fileName === "string" && fileName !== "" ? fileName : file.name,
-		fileUrl: typeof fileUrl === "string" && fileUrl !== "" ? fileUrl : null,
-		fileSize: typeof fileSize === "number" ? fileSize : null,
-	};
+	return message as FrappeFileDoc;
 }
 
 /** What `flow.api.attach_file` returns: `{file, file_name, file_size}`. */
