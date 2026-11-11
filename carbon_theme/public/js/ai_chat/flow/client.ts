@@ -17,9 +17,11 @@
 import type { FrappeFileDoc, FrappeResponse } from "frappe-types";
 import type { FlowEvent } from "./events.ts";
 import {
+	parseFlowModels,
 	parseFlowRunDocs,
 	parseFlowSessionDoc,
 	parseFlowSessionSummaries,
+	type FlowModelOption,
 	type FlowRunDoc,
 	type FlowSessionDoc,
 	type FlowSessionSummary,
@@ -276,6 +278,18 @@ export async function listSessions(
 		limit_page_length: options.limit ?? 50,
 	});
 	return parseFlowSessionSummaries(reply);
+}
+
+/** The enabled Flow Models the user may pick, in title order. */
+export async function listModels(env: FlowEnv = defaultFlowEnv()): Promise<FlowModelOption[]> {
+	const reply = await env.call("frappe.client.get_list", {
+		doctype: "Flow Model",
+		filters: { enabled: 1 },
+		fields: ["name", "title"],
+		order_by: "title asc",
+		limit_page_length: 50,
+	});
+	return parseFlowModels(reply);
 }
 
 export async function getSession(name: string, env: FlowEnv = defaultFlowEnv()): Promise<FlowSessionDoc> {

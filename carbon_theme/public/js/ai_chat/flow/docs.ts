@@ -223,3 +223,22 @@ export function parseToolCalls(raw: unknown): FlowToolCall[] {
 	}
 	return calls;
 }
+
+/** One enabled Flow Model: `get_list("Flow Model", {fields: ["name", "title"]})`. */
+export interface FlowModelOption {
+	name: string;
+	title: string;
+}
+
+function isFlowModelRow(value: unknown): value is { name: string; title?: Maybe<string> } {
+	return isRecord(value) && typeof value["name"] === "string" && value["name"] !== "";
+}
+
+/** Rows without a name are dropped; a missing title falls back to the name. */
+export function parseFlowModels(value: unknown): FlowModelOption[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter(isFlowModelRow).map((row) => ({
+		name: row.name,
+		title: typeof row.title === "string" && row.title !== "" ? row.title : row.name,
+	}));
+}

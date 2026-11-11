@@ -11,6 +11,7 @@ import {
 	deleteSession,
 	getSession,
 	listRuns,
+	listModels,
 	listSessions,
 	recoverSession,
 	renameSession,
@@ -501,6 +502,44 @@ describe("listSessions", () => {
 		]);
 		h.reply.value = "garbage";
 		assert.deepEqual(await listSessions(user, {}, h.env), []);
+	});
+});
+
+describe("listModels", () => {
+	it("asks for the enabled Flow Models by title", async () => {
+		const h = harness();
+		h.reply.value = [];
+		await listModels(h.env);
+		assert.deepEqual(h.calls, [
+			{
+				method: "frappe.client.get_list",
+				args: {
+					doctype: "Flow Model",
+					filters: { enabled: 1 },
+					fields: ["name", "title"],
+					order_by: "title asc",
+					limit_page_length: 50,
+				},
+			},
+		]);
+	});
+
+	it("drops rows without a name and falls back to the name for a missing title", async () => {
+		const h = harness();
+		h.reply.value = [
+			{ name: "a", title: "A" },
+			{ title: "no name" },
+			null,
+			{ name: "b" },
+			{ name: "c", title: "" },
+		];
+		assert.deepEqual(await listModels(h.env), [
+			{ name: "a", title: "A" },
+			{ name: "b", title: "b" },
+			{ name: "c", title: "c" },
+		]);
+		h.reply.value = "garbage";
+		assert.deepEqual(await listModels(h.env), []);
 	});
 });
 

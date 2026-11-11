@@ -19,6 +19,7 @@ import type {
 } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
 import type { FlowEvent } from "../../../carbon_theme/public/js/ai_chat/flow/events.ts";
 import type {
+	FlowModelOption,
 	FlowRunDoc,
 	FlowSessionDoc,
 	FlowSessionSummary,
@@ -67,6 +68,7 @@ import {
 
 const SESSION_KEY = "cf-ai-session";
 const AGENT_KEY = "cf-ai-agent";
+const MODEL_KEY = "cf-ai-model";
 const NOW = 1_790_000_000_000;
 
 // -- fakes --------------------------------------------------------------------
@@ -223,6 +225,8 @@ interface FakeClient extends FlowClient {
 	list: FlowSessionSummary[] | Error;
 	listHold: Promise<void> | null;
 	listCalls: { user: string; limit: number | undefined }[];
+	/** What listModels answers. */
+	models: FlowModelOption[] | Error;
 	renames: { name: string; title: string }[];
 	renameHold: Promise<void> | null;
 	renameFails: Error | null;
@@ -253,6 +257,7 @@ function fakeClient(): FakeClient {
 		list: [],
 		listHold: null,
 		listCalls: [],
+		models: [],
 		renames: [],
 		renameHold: null,
 		renameFails: null,
@@ -308,6 +313,10 @@ function fakeClient(): FakeClient {
 			await client.listHold;
 			if (client.list instanceof Error) throw client.list;
 			return client.list;
+		},
+		async listModels() {
+			if (client.models instanceof Error) throw client.models;
+			return client.models;
 		},
 		async renameSession(name, title) {
 			client.renames.push({ name, title });
@@ -1147,6 +1156,128 @@ describe("newChat", () => {
 		assert.equal(h.store.get().messages.length, 2);
 		assert.equal(h.storage.data.get(SESSION_KEY), SESSION);
 		await g.push(ev.done("Completed", "partial", 1, {}));
+		g.end();
+		await turn;
+	});
+});
+
+describe("models", () => {
+	const doc = (name: string, model: string | null): FlowSessionDoc => ({
+		name,
+		model,
+		messages: [],
+		attachments: [],
+	});
+
+	it("sends the chosen model on a new chat and again on its session", async () => {
+		const h = harness();
+		h.controller.setModel("m-b");
+		assert.equal(h.storage.data.get(MODEL_KEY), "m-b");
+		h.client.nextStart(replay(TEXT_ONLY.events));
+		await h.controller.send("one");
+		assert.equal(h.client.starts[0]?.model, "m-b");
+		h.client.nextStart(replay(TEXT_ONLY.events));
+		await h.controller.send("two");
+		assert.equal(h.client.starts[1]?.session, SESSION);
+		assert.equal(h.client.starts[1]?.model, "m-b");
+	});
+
+	it("sends no model for Default", async () => {
+		const h = harness();
+		h.client.nextStart(replay(TEXT_ONLY.events));
+		await h.controller.send("one");
+		assert.equal("model" in (h.client.starts[0] ?? {}), false);
+	});
+
+	it("start() with no saved session takes MODEL_KEY", async () => {
+		const h = harness({ [MODEL_KEY]: "m-a" }, { status: "loading" });
+		await h.controller.start();
+		assert.equal(h.store.get().model, "m-a");
+	});
+
+	it("start() restoring a session takes the session's model", async () => {
+		const h = harness({ [SESSION_KEY]: "S1", [MODEL_KEY]: "m-a" }, { status: "loading" });
+		h.client.sessions.set("S1", { session: doc("S1", "m-c"), runs: [] });
+		await h.controller.start();
+		assert.equal(h.store.get().model, "m-c");
+	});
+
+	it("selectSession adopts the session's model, and newChat goes back to the saved one", async () => {
+		const h = harness({ [MODEL_KEY]: "m-a" });
+		h.client.sessions.set("S2", { session: doc("S2", "m-c"), runs: [] });
+		h.client.sessions.set("S3", { session: doc("S3", null), runs: [] });
+		assert.equal(await h.controller.selectSession("S2"), true);
+		assert.equal(h.store.get().model, "m-c");
+		assert.equal(await h.controller.selectSession("S3"), true);
+		assert.equal(h.store.get().model, null);
+		h.controller.newChat();
+		assert.equal(h.store.get().model, "m-a");
+	});
+
+	it("deleting the showing session resets to the saved model", async () => {
+		const h = harness({ [MODEL_KEY]: "m-a" });
+		h.client.sessions.set("S2", { session: doc("S2", "m-c"), runs: [] });
+		await h.controller.selectSession("S2");
+		await h.controller.deleteSession("S2");
+		assert.equal(h.store.get().session, null);
+		assert.equal(h.store.get().model, "m-a");
+	});
+
+	it("loadModels fills the list and notifies subscribers", async () => {
+		const h = harness();
+		h.client.models = [
+			{ name: "m-a", title: "A" },
+			{ name: "m-b", title: "B" },
+		];
+		let calls = 0;
+		const off = h.controller.models.subscribe(() => void calls++);
+		await h.controller.loadModels();
+		assert.deepEqual(h.controller.models.get(), h.client.models);
+		assert.equal(calls, 1);
+		off();
+		await h.controller.loadModels();
+		assert.equal(calls, 1);
+	});
+
+	it("loadModels clears a saved model that is no longer enabled", async () => {
+		const h = harness({ [MODEL_KEY]: "gone" }, { model: "gone" });
+		h.client.models = [{ name: "m-a", title: "A" }];
+		await h.controller.loadModels();
+		assert.equal(h.storage.data.get(MODEL_KEY), "");
+		assert.equal(h.store.get().model, null);
+	});
+
+	it("loadModels leaves a session's own model alone even when it is not enabled", async () => {
+		const h = harness({ [MODEL_KEY]: "gone" });
+		h.client.sessions.set("S2", { session: doc("S2", "gone"), runs: [] });
+		await h.controller.selectSession("S2");
+		h.client.models = [{ name: "m-a", title: "A" }];
+		await h.controller.loadModels();
+		assert.equal(h.storage.data.get(MODEL_KEY), "");
+		assert.equal(h.store.get().model, "gone");
+	});
+
+	it("a failed loadModels keeps the previous list and never rejects", async () => {
+		const h = harness();
+		h.client.models = [{ name: "m-a", title: "A" }];
+		await h.controller.loadModels();
+		h.client.models = new Error("offline");
+		const error = mock.method(console, "error", () => {});
+		await h.controller.loadModels();
+		assert.equal(error.mock.callCount(), 1);
+		assert.deepEqual(h.controller.models.get(), [{ name: "m-a", title: "A" }]);
+	});
+
+	it("setModel is ignored while a turn is live", async () => {
+		const h = harness();
+		const g = gate();
+		h.client.nextStart(g.script);
+		const turn = h.controller.send("one");
+		await g.push(ev.runStarted(RUN, SESSION));
+		h.controller.setModel("m-b");
+		assert.equal(h.store.get().model, null);
+		assert.equal(h.storage.data.has(MODEL_KEY), false);
+		await g.push(ev.done("Completed", "", 1, {}));
 		g.end();
 		await turn;
 	});
