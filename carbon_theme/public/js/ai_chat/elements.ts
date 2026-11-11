@@ -37,6 +37,10 @@ export const TAGS = {
 	processing: "cds-aichat-processing",
 	codeSnippet: "cds-aichat-code-snippet",
 	button: "cds-aichat-button",
+	menuButton: "cds-menu-button",
+	menu: "cds-menu",
+	menuItem: "cds-menu-item",
+	menuItemRadioGroup: "cds-menu-item-radio-group",
 	historyShell: "cds-aichat-history-shell",
 	historyHeader: "cds-aichat-history-header",
 	historyToolbar: "cds-aichat-history-toolbar",
@@ -404,6 +408,30 @@ export interface IconButtonElement extends HTMLElement {
 	disabled: boolean;
 }
 
+/** @carbon/web-components menu-button. Its `cds-menu` goes in the default slot. */
+export interface MenuButtonElement extends HTMLElement {
+	kind: string;
+	size: string;
+	label: string;
+	disabled: boolean;
+	menuAlignment: string;
+}
+
+/** @carbon/web-components menu. */
+export type MenuElement = HTMLElement;
+
+/** @carbon/web-components menu-item. */
+export interface MenuItemElement extends HTMLElement {
+	label: string;
+	disabled: boolean;
+}
+
+/** @carbon/web-components menu-item-radio-group. Its items are child `cds-menu-item`s; `selectedItem` is one of them. */
+export interface MenuItemRadioGroupElement extends HTMLElement {
+	label: string;
+	selectedItem: HTMLElement | null;
+}
+
 // -- guards and factories -----------------------------------------------------
 
 function hasAll(element: HTMLElement, names: readonly string[]): boolean {
@@ -451,6 +479,19 @@ const isCodeSnippet = (element: HTMLElement): element is CodeSnippetElement =>
 	hasAll(element, ["code", "language", "highlight", "hideHeader", "foldExpandLabel", "getLineCountText"]);
 const isChatButton = (element: HTMLElement): element is ChatButtonElement =>
 	hasAll(element, ["kind", "size", "disabled", "isQuickAction"]);
+const isMenuButton = (element: HTMLElement): element is MenuButtonElement =>
+	hasAll(element, ["kind", "size", "label", "menuAlignment"]);
+const isMenu = (element: HTMLElement): element is MenuElement => hasAll(element, ["items", "isChild"]);
+const isMenuItem = (element: HTMLElement): element is MenuItemElement =>
+	hasAll(element, ["label", "disabled", "shortcut"]);
+const isMenuItemRadioGroup = (element: HTMLElement): element is MenuItemRadioGroupElement =>
+	hasAll(element, ["selectedItem", "itemToString"]);
+
+export const createMenuButton = (): MenuButtonElement => create(TAGS.menuButton, isMenuButton);
+export const createMenu = (): MenuElement => create(TAGS.menu, isMenu);
+export const createMenuItem = (): MenuItemElement => create(TAGS.menuItem, isMenuItem);
+export const createMenuItemRadioGroup = (): MenuItemRadioGroupElement =>
+	create(TAGS.menuItemRadioGroup, isMenuItemRadioGroup);
 
 const isFileUploads = (element: HTMLElement): element is FileUploadsElement =>
 	hasAll(element, [
@@ -570,6 +611,8 @@ export const EVENTS = {
 	searchInput: "cds-search-input",
 	/** file-uploads, from a chip's remove button. detail `{fileId}`: the `UploadChip.id` (the pending upload's id). */
 	fileRemove: "cds-aichat-file-remove",
+	/** menu-item-radio-group, on a click on one of its items (Carbon 2.64 dispatches it twice.) detail `{triggeredBy}`. */
+	menuItemChanged: "cds-item-changed",
 } as const;
 
 export interface PromptChangeDetail {
@@ -591,6 +634,14 @@ export interface FeedbackSubmitDetail {
 
 export interface ToggleDetail {
 	open: boolean;
+}
+
+export interface MenuItemChangedDetail {
+	triggeredBy: EventTarget;
+}
+
+export function isMenuItemChangedDetail(detail: unknown): detail is MenuItemChangedDetail {
+	return isRecord(detail) && detail["triggeredBy"] instanceof EventTarget;
 }
 
 export function isPromptChangeDetail(detail: unknown): detail is PromptChangeDetail {
