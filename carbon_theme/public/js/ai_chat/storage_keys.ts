@@ -10,3 +10,6 @@ export const SESSION_KEY = "cf-ai-session";
 
 /** Optional Flow Agent name for new sessions. Read by the controller; unset means flow's default. */
 export const AGENT_KEY = "cf-ai-agent";
+
+/** The Flow Model new chats start with; "" or unset means the agent's default. Written by the controller. */
+export const MODEL_KEY = "cf-ai-model";
