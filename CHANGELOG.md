@@ -1,5 +1,12 @@
 # Changelog
 
+## [16.4.0](https://github.com/Avunu/carbon_theme/compare/v16.3.2...v16.4.0) (2026-11-14)
+
+
+### Features
+
+* show the app's logo in the About dialog, on frappe-nix 2.4.0 ([#151](https://github.com/Avunu/carbon_theme/issues/151)) ([63fe8b4](https://github.com/Avunu/carbon_theme/commit/63fe8b431bf75274a81b28ab86102877cc6c6269))
+
 ## [16.3.2](https://github.com/Avunu/carbon_theme/compare/v16.3.1...v16.3.2) (2026-11-03)
 
 
