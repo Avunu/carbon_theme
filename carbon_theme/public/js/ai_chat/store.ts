@@ -35,6 +35,7 @@ export interface ChatStore {
 	replace(messages: readonly Message[]): void;
 	setStatus(status: ChatStatus, error?: ChatError): void;
 	setSession(session: string | null): void;
+	setModel(model: string | null): void;
 	/** Appends to `pendingUploads`. An id that is already there is left alone. */
 	addPendingUpload(upload: PendingUpload): void;
 	/**
@@ -70,6 +71,7 @@ export function createChatStore(initial?: Partial<ChatState>): ChatStore {
 		session: null,
 		pendingUploads: [],
 		hasInFlightUploads: false,
+		model: null,
 		...initial,
 	};
 	// The flag is derived, so a caller's `initial` can never contradict the list.
@@ -129,7 +131,8 @@ export function createChatStore(initial?: Partial<ChatState>): ChatStore {
 			Object.is(next.activeResponseId, state.activeResponseId) &&
 			Object.is(next.session, state.session) &&
 			Object.is(next.pendingUploads, state.pendingUploads) &&
-			Object.is(next.hasInFlightUploads, state.hasInFlightUploads)
+			Object.is(next.hasInFlightUploads, state.hasInFlightUploads) &&
+			Object.is(next.model, state.model)
 		) {
 			return;
 		}
@@ -231,6 +234,10 @@ export function createChatStore(initial?: Partial<ChatState>): ChatStore {
 			commit({ ...state, session });
 		},
 
+		setModel(model) {
+			commit({ ...state, model });
+		},
+
 		addPendingUpload(upload) {
 			if (state.pendingUploads.some((existing) => existing.id === upload.id)) return;
 			const pendingUploads = [...state.pendingUploads, upload];
@@ -267,6 +274,7 @@ export function createChatStore(initial?: Partial<ChatState>): ChatStore {
 				session: null,
 				pendingUploads: [],
 				hasInFlightUploads: false,
+				model: null,
 				...overrides,
 			};
 			next.hasInFlightUploads = anyUploading(next.pendingUploads);

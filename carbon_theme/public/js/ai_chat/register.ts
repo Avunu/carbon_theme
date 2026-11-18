@@ -23,3 +23,5 @@ import "@carbon/ai-chat-components/es/components/chat-history/index.js";
 // document glyphs (about 17.6 KB gzip); error-message is small and shares the icon button the toolbar loads.
 import "@carbon/ai-chat-components/es/components/file-uploads/index.js";
 import "@carbon/ai-chat-components/es/components/prompt-line/src/error-message.js";
+// Not here: cds-menu-button and cds-menu (the model picker). view/model_picker.ts imports them on demand,
+// only once two models are enabled, which keeps about 9 KB gzip out of the first open.
