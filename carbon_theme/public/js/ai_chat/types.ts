@@ -262,6 +262,8 @@ export interface ChatState {
 	pendingUploads: readonly PendingUpload[];
 	/** True while any pending upload is `uploading`; maintained by the store, never set by a caller. */
 	hasInFlightUploads: boolean;
+	/** The Flow Model sent with the next turn; null means the agent's own model. */
+	model: string | null;
 }
 
 // -- reducer state ------------------------------------------------------------

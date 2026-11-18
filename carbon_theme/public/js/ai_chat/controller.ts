@@ -16,9 +16,9 @@
 //             stays in `ready` and shows an inline_error item instead. A switch that
 //             fails goes back to whatever it left: `ready`, or this error again.
 import type { FrappeFileDoc } from "frappe-types";
-import { AGENT_KEY, SESSION_KEY } from "./storage_keys.ts";
 import type { FlowEvent, FlowQuestion, ToolEndedEvent } from "./flow/events.ts";
-import type { FlowRunDoc, FlowSessionDoc, FlowSessionSummary } from "./flow/docs.ts";
+import type { FlowModelOption, FlowRunDoc, FlowSessionDoc, FlowSessionSummary } from "./flow/docs.ts";
+import { AGENT_KEY, MODEL_KEY, SESSION_KEY } from "./storage_keys.ts";
 import type {
 	AttachedFile,
 	CallOptions,
@@ -34,6 +34,7 @@ import {
 	deleteFile,
 	deleteSession,
 	getSession,
+	listModels,
 	listRuns,
 	listSessions,
 	recoverSession,
@@ -88,6 +89,8 @@ export interface FlowClient {
 	listRuns(session: string): Promise<FlowRunDoc[]>;
 	/** The user's own non-trigger sessions, newest `modified` first. */
 	listSessions(user: string, options?: { limit?: number }): Promise<FlowSessionSummary[]>;
+	/** The enabled Flow Models. */
+	listModels(): Promise<FlowModelOption[]>;
 	/** Sets `Flow Session.title`. Rejects with the server's reason; an empty title rejects before any request. */
 	renameSession(name: string, title: string): Promise<void>;
 	/** Deletes the session and (server-side, `on_trash`) its runs. Owner-only; the server enforces it. */
@@ -113,12 +116,21 @@ export function createFlowClient(env?: FlowEnv, uploadEnv?: UploadEnv): FlowClie
 		getSession: (name) => getSession(name, env),
 		listRuns: (session) => listRuns(session, env),
 		listSessions: (user, options) => listSessions(user, options, env),
+		listModels: () => listModels(env),
 		renameSession: (name, title) => renameSession(name, title, env),
 		deleteSession: (name) => deleteSession(name, env),
 		uploadFile: (file, options) => uploadFile(file, options, uploads()),
 		attachFile: (fileDoc, signal) => attachFile(fileDoc, signal, env),
 		deleteFile: (name, options) => deleteFile(name, env, options),
 	};
+}
+
+export type { FlowModelOption };
+
+/** The enabled models the picker offers. The controller is its only writer. */
+export interface ModelList {
+	get(): readonly FlowModelOption[];
+	subscribe(listener: () => void): () => void;
 }
 
 /** The slice of localStorage the controller uses. Every call may throw; the default swallows. */
@@ -179,7 +191,7 @@ export interface ControllerDeps {
 	store: ChatStore;
 	/** Defaults to `createFlowClient()`. */
 	client?: FlowClient;
-	/** Defaults to `browserStorage()`. Keys: SESSION_KEY, AGENT_KEY (storage_keys.ts), STREAM_KEY. */
+	/** Defaults to `browserStorage()`. Keys: SESSION_KEY, AGENT_KEY, MODEL_KEY (storage_keys.ts), STREAM_KEY. */
 	storage?: ControllerStorage;
 	/** Epoch milliseconds, for message timestamps and the stream lease. Defaults to `Date.now`. */
 	now?: () => number;
@@ -305,6 +317,19 @@ export interface Controller {
 	retryLast(): Promise<void>;
 	/** Abort any stream without telling the server, and ignore every later call. Aborts every upload, also silently. */
 	dispose(): void;
+	/** The enabled Flow Models; empty until `loadModels` succeeds. */
+	readonly models: ModelList;
+	/**
+	 * Fetch the enabled models into `models`. A saved MODEL_KEY that is no longer enabled is cleared, and a
+	 * new chat showing it falls back to the default. Never rejects: a failure keeps the previous list.
+	 */
+	loadModels(): Promise<void>;
+	/**
+	 * Choose the model for the next turn (null: the agent's default) and remember it in MODEL_KEY for new
+	 * chats. Ignored while a turn is live or a conversation is loading. On an existing session flow saves a
+	 * non-null choice as the session's model on the next send.
+	 */
+	setModel(name: string | null): void;
 }
 
 /** What a failed `selectSession` puts back: idle, or the hydration error that was showing. */
@@ -460,6 +485,49 @@ export function createController(deps: ControllerDeps): Controller {
 		} catch {
 			// storage is best-effort
 		}
+	}
+
+	/** What a new chat starts with. */
+	function savedModel(): string | null {
+		return read(MODEL_KEY) || null;
+	}
+
+	let modelList: readonly FlowModelOption[] = [];
+	const modelListeners = new Set<() => void>();
+	let modelsToken = 0;
+	const models: ModelList = {
+		get: () => modelList,
+		subscribe(listener) {
+			modelListeners.add(listener);
+			return () => void modelListeners.delete(listener);
+		},
+	};
+
+	async function loadModels(): Promise<void> {
+		if (disposed) return;
+		const token = ++modelsToken;
+		let rows: FlowModelOption[];
+		try {
+			rows = await client.listModels();
+		} catch (error) {
+			console.error(error);
+			return;
+		}
+		if (token !== modelsToken || disposed) return;
+		modelList = rows;
+		const saved = read(MODEL_KEY);
+		if (saved && !rows.some((row) => row.name === saved)) {
+			write(MODEL_KEY, "");
+			const state = store.get();
+			if (state.session === null && state.model === saved) store.setModel(null);
+		}
+		for (const listener of modelListeners) listener();
+	}
+
+	function setModel(name: string | null): void {
+		if (disposed || isBusy(store.get().status)) return;
+		store.setModel(name);
+		write(MODEL_KEY, name ?? "");
 	}
 
 	/** Drop every unfinished hydration or switch; returns the epoch that now counts. */
@@ -725,6 +793,8 @@ export function createController(deps: ControllerDeps): Controller {
 			const agent = read(AGENT_KEY);
 			if (agent) params.agent = agent;
 		}
+		const model = snapshot.model;
+		if (model) params.model = model;
 		const attachments = attachmentIdsOf(fields);
 		if (attachments.length > 0) params.attachments = attachments;
 		store.upsert(requestId, "complete", {
@@ -816,6 +886,7 @@ export function createController(deps: ControllerDeps): Controller {
 		store.setStatus("loading");
 		const saved = read(SESSION_KEY);
 		if (!saved) {
+			store.setModel(savedModel());
 			store.setStatus("ready");
 			return;
 		}
@@ -824,6 +895,7 @@ export function createController(deps: ControllerDeps): Controller {
 			if (epoch !== mine) return;
 			store.replace(sessionToMessages(doc, runs, historyOptions()));
 			store.setSession(saved);
+			store.setModel(doc.model || null);
 			store.setStatus("ready");
 		} catch (error) {
 			if (epoch !== mine) return;
@@ -983,7 +1055,7 @@ export function createController(deps: ControllerDeps): Controller {
 		if (disposed || status === "submitted" || status === "streaming") return;
 		supersede();
 		discardUploads();
-		store.reset({ status: "ready" });
+		store.reset({ status: "ready", model: savedModel() });
 		write(SESSION_KEY, "");
 	}
 
@@ -1054,6 +1126,7 @@ export function createController(deps: ControllerDeps): Controller {
 			// Still `loading` here: that is what lets the list scroll to the end without announcing a hydration.
 			store.replace(sessionToMessages(doc, runs, historyOptions()));
 			store.setSession(name);
+			store.setModel(doc.model || null);
 			write(SESSION_KEY, name);
 			resting = null;
 			switching = null;
@@ -1136,7 +1209,7 @@ export function createController(deps: ControllerDeps): Controller {
 			}
 			supersede();
 			discardUploads();
-			store.reset({ status: "ready" });
+			store.reset({ status: "ready", model: savedModel() });
 			write(SESSION_KEY, "");
 		} else if (read(SESSION_KEY) === name) {
 			write(SESSION_KEY, "");
@@ -1155,6 +1228,9 @@ export function createController(deps: ControllerDeps): Controller {
 		selectSession,
 		renameSession: retitleSession,
 		deleteSession: removeSession,
+		models,
+		loadModels,
+		setModel,
 		uploadLimits: deps.uploadLimits ?? null,
 		addFiles,
 		removeFile,
