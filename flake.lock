@@ -334,11 +334,11 @@
     "hrms": {
       "flake": false,
       "locked": {
-        "lastModified": 1793773454,
-        "narHash": "sha256-e7FJUY+KVF+al96grxy02JZT9bma4XLks/XVy6/HBdA=",
+        "lastModified": 1794954427,
+        "narHash": "sha256-hO41ImzCODX4Gndrn2hM7BIed/C3J9FJQhU4W1j8YAA=",
         "owner": "frappe",
         "repo": "hrms",
-        "rev": "3b7f8f2854a06fb9eb4d2785e20ddaf8ad750980",
+        "rev": "1b2d7e034e0de8e30a9e513541d7741710587ad5",
         "type": "github"
       },
       "original": {
@@ -694,11 +694,11 @@
     "standards-profile": {
       "flake": false,
       "locked": {
-        "lastModified": 1793842140,
-        "narHash": "sha256-aHilvsj3cZvqHZ5fQwFUiJvC/R5x+1TfJ9WLaMHf1Qw=",
+        "lastModified": 1794997119,
+        "narHash": "sha256-vTKoRJWekzJFnZFBNVF3Zf+Z7NKMtVNTiNTxQ6iK1ew=",
         "owner": "Avunu",
         "repo": "frappe-standards-profile",
-        "rev": "dd1a9f01ad3f9430dbbbb8ed88799f81da3e9675",
+        "rev": "65d18d2590d6efb4163a37bff0de30523bcd90fe",
         "type": "github"
       },
       "original": {
