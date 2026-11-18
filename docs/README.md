@@ -1,6 +1,6 @@
 ---
 title: Carbon Theme for Frappe
-description: IBM Carbon Design System theme for the Frappe desk, website, login and email, with a Carbon header, table engine and AI assistant panel.
+description: IBM Carbon Design System theme for the Frappe desk, website, login and email, with a Carbon header and table engine.
 nav_title: Overview
 order: 0
 updated: 2026-10-26
@@ -32,15 +32,15 @@ Child tables, the List view and the Report and Query views are drawn by one Carb
 
 A System Manager can set brand colours for light and dark mode and a header colour in **Carbon Settings**. On local development sites the header turns yellow with hazard stripes, so a development tab is not mistaken for production. See [Configuration](configuration.md).
 
-### An AI assistant panel
+### A button for Frappe's AI assistant
 
-When Frappe's [flow](https://github.com/frappe/flow_client) app is installed, the header gets an AI assistant built from Carbon AI Chat, with conversation history, feedback and file attachments. See [Use the AI assistant](ai-assistant.md).
+On Frappe 16.60 and later, the header gets a button that opens Frappe's built-in Flow panel, for users who can use Flow. See [Use the header](ui-shell.md).
 
 ## Where to start
 
 | You are                                 | Read                                                                                                                             |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Someone who works in the desk           | [Use the header](ui-shell.md), [Work with tables](tables.md) and [Use the AI assistant](ai-assistant.md)                         |
+| Someone who works in the desk           | [Use the header](ui-shell.md) and [Work with tables](tables.md)                                                                  |
 | The administrator setting it up         | [Install and upgrade](install.md), [Configuration](configuration.md) and [Limitations and troubleshooting](troubleshooting.md)   |
 | A developer changing the app            | [Development](development/README.md) and [How it works](development/architecture.md)                                             |
 | A developer whose app or report uses it | [How it works](development/architecture.md), especially what the table engine keeps compatible and how frappe-ui apps are themed |
@@ -51,7 +51,6 @@ When Frappe's [flow](https://github.com/frappe/flow_client) app is installed, th
 - A bench of its own. The theme replaces Frappe's stylesheets for the whole bench, including sites that do not have the app installed: see [Limitations](troubleshooting.md#limitations).
 - Node and yarn on the machine that builds the assets, as for any Frappe app with a `package.json`.
 - ERPNext is not required. The app works with any Frappe apps and is tested with ERPNext and HRMS.
-- For the AI assistant only: the [flow](https://github.com/frappe/flow_client) app on the same site.
 
 ## Source and changes
 

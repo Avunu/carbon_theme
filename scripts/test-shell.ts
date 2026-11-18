@@ -15,10 +15,8 @@
  *
  *   node scripts/test-shell.ts
  *   CF_SITE_URL=http://localhost:8000 node scripts/test-shell.ts
- *   CF_SITE_URL=http://127.0.0.1:8889 node scripts/test-shell.ts assistant
+ *   CF_SITE_URL=http://127.0.0.1:8889 node scripts/test-shell.ts pagehead
  *
- * The `assistant` suite (AI chat; scripts/shell/assistant.ts) additionally needs flow
- * installed and `yarn build:chat` run, and skips itself when flow is absent.
  * The `pagehead` suite (scripts/shell/pagehead.ts) drives the page head on existing
  * documents every site has (a Role, a Language) and never saves.
  *
@@ -37,10 +35,6 @@ type Suite = readonly [name: string, description: string];
 
 const SUITES: readonly Suite[] = [
 	["header", "name, links, sub-menus, overflow, switcher, utilities, g100 parity"],
-	[
-		"assistant",
-		"AI assistant: header action, flow takeover, lazy bundle, streaming, approvals, history, feedback, attachments, timestamps, scroll, keyboard, themes",
-	],
 	[
 		"pagehead",
 		"page head: breadcrumb trail and heading, status tag, editable title, page actions, menu, dialog, one hamburger",

@@ -78,15 +78,6 @@ export const SHELL_GLYPHS: readonly GlyphSpec[] = [
 		role: "the notifications action (HeaderGlobalAction); the click opens frappe's notifications panel",
 	},
 	{
-		exportName: "errorFilled20",
-		icon: "error--filled",
-		size: 20,
-		// InlineNotification's NotificationIcon (Notification.tsx): the assistant's
-		// load-failure message renders before any Carbon component can.
-		attrs: { class: "cds--inline-notification__icon" },
-		role: "the error inline notification's status icon, pre-classed `cds--inline-notification__icon`",
-	},
-	{
 		exportName: "chevronDown16",
 		icon: "chevron--down",
 		size: 16,

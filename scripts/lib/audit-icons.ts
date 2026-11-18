@@ -226,10 +226,7 @@ export function auditSpriteReferences(appRoot: string, frappeRoot: string, warn:
 	}
 	const jsRoot = path.join(appRoot, "carbon_theme", "public", "js");
 	const wanted = new Map<string, string>();
-	for (const file of walk(
-		jsRoot,
-		(name) => name === "generated" || name === "ai_chat" || name === "node_modules",
-	)) {
+	for (const file of walk(jsRoot, (name) => name === "generated" || name === "node_modules")) {
 		if (!file.endsWith(".ts")) continue;
 		for (const id of findSpriteReferences(fs.readFileSync(file, "utf-8"))) {
 			if (!wanted.has(id)) wanted.set(id, path.relative(appRoot, file));

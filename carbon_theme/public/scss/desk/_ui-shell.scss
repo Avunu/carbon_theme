@@ -43,11 +43,12 @@ $shell-height: 3rem; // mini-units(6)
 // cover the header, and #freeze (2000). The espresso menus and popovers sit at
 // 1060, so a menu opened from a header cell paints above it.
 $shell-z: 1030;
-// the dock sits above the sidebar and its overlay (1020, 1021) and below the AI
-// panel (1025, desk/_ai-chat.scss), which covers it when expanded
+// the dock sits above the sidebar and its overlay (1020, 1021) and below the
+// notifications panel
 $dock-z: 1022;
-// the notifications panel: the AI panel's layer, under the header and above the page.
-// The two are never open together (the bell closes the assistant and the reverse).
+// the notifications panel: under the header and above the page and the dock.
+// Frappe's Flow panel (1035 on /desk) is above it; the two are never open
+// together (the bell closes Flow and the reverse, ui_shell.ts).
 $panel-z: 1025;
 $cell: 3rem;
 
@@ -129,6 +130,21 @@ body.cf-has-shell {
 // after the include rather than configured.
 .cds--header {
 	z-index: $shell-z;
+}
+
+// Frappe's Flow panel docks on the right and pushes the page with
+// `html[data-flow-docked] { margin-right: var(--flow-dock-width) }`
+// (flow_launcher.bundle.js, PAGE_STYLE). The header is fixed, so the margin does
+// not reach it, and the panel would cover its right end, the AI action included.
+html[data-flow-docked] .cds--header {
+	inset-inline-end: var(--flow-dock-width);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	// the launcher's own slide (SLIDE in flow_launcher.bundle.js)
+	html[data-flow-sliding] .cds--header {
+		transition: inset-inline-end 200ms cubic-bezier(0.2, 0, 0, 1);
+	}
 }
 
 .cds--header-panel {

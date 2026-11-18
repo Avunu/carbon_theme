@@ -72,12 +72,6 @@
 			}
 		},
 		{
-			"files": ["carbon_theme/public/js/ai_chat/register.ts", "carbon_theme/public/js/ai_chat/entry.ts"],
-			"rules": {
-				"import/no-unassigned-import": "off"
-			}
-		},
-		{
 			"files": ["dev/**"],
 			"rules": {
 				"no-console": "off",

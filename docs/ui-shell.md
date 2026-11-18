@@ -22,7 +22,7 @@ From left to right:
 | Search              | Opens Frappe's search bar.                                                                                                                                                                                                                                                               |
 | Notifications       | Opens Frappe's notifications panel on the right. A badge shows the unread count.                                                                                                                                                                                                         |
 | Account             | Your account menu, the same one the sidebar's user chip opens.                                                                                                                                                                                                                           |
-| AI assistant        | Only when the flow app is installed. See [Use the AI assistant](ai-assistant.md).                                                                                                                                                                                                        |
+| AI assistant        | Opens Frappe's Flow panel (also Ctrl/Cmd+I). Shown to users who can use Flow: the Flow User role or System Manager.                                                                                                                                                                      |
 | Switcher            | The far-right button. It opens a panel listing the apps on the `/desk` desktop, with the app you are in selected, and a link to the Desktop below them. On a site still set to Frappe's older **Desktop Icons** page, it lists those icons instead, with folders as rows you can expand. |
 
 The dock of module icons and the sidebar stay where Frappe puts them, under the header. Use the dock to switch modules within an app and the switcher to switch apps.
@@ -30,7 +30,7 @@ The dock of module icons and the sidebar stay where Frappe puts them, under the 
 ## Narrow windows and phones
 
 - Below 66rem (about 1056px) the header hides its links. The sidebar still has every link: open it with the menu button.
-- Below 768px Frappe's own navigation bar is kept instead of the header, and the AI assistant is not available.
+- Below 768px Frappe's own navigation bar is kept instead of the header. Press Ctrl/Cmd+I to open Flow there.
 
 ## When the header does not appear
 

@@ -213,7 +213,7 @@ export const SELECTORS: readonly SelectorEntry[] = [
 	["editable-title", "frappe/public/js/frappe/form/toolbar.js"],
 
 	// espresso components the theme restyles onto Carbon (desk/_buttons.scss,
-	// _modals.scss, _misc.scss, _widgets.scss, _ai-chat.scss) — frappe's own
+	// _modals.scss, _misc.scss, _widgets.scss) — frappe's own
 	// markup, so a rename is a silent revert to the espresso look
 	["es-button", "frappe/public/js/frappe/ui/components/button.js"],
 	["es-button__label", "frappe/public/js/frappe/ui/components/button.js"],
@@ -237,8 +237,7 @@ export const SELECTORS: readonly SelectorEntry[] = [
 	["es-hover-card", "frappe/public/js/frappe/ui/components/hover_card.js"],
 	["es-avatar", "frappe/public/js/frappe/ui/components/avatar.js"],
 	["es-skeleton", "frappe/public/js/frappe/ui/components/skeleton.js"],
-	// toasts: `frappe.ui.toast` replaced show_alert's markup, and the AI panel
-	// moves the container aside while it is open (desk/_ai-chat.scss)
+	// toasts: `frappe.ui.toast` replaced show_alert's markup
 	["es-toast", "frappe/public/js/frappe/ui/components/toast.js"],
 	["es-toast-container", "frappe/public/js/frappe/ui/components/toast.js"],
 	// the dialog footer's two standard buttons, each `.hide` until a dialog
@@ -936,35 +935,38 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/sidebar_for_module\(module\)\s*\{\s*if \(!module\) return undefined;\s*const all = frappe\.boot\.module_sidebars \|\| \{\};\s*return all\[module\] \|\| Object\.values\(all\)\.find\(\(entry\) => entry\.module === module\)/,
 	],
 
-	// --- AI assistant takeover (js/anatomy/shell/assistant.ts) --------------
-	// apps/flow is not frappe's, and CI checks frappe out alone, so its panel
-	// (#flow-root, frappe.flow.panel.{show,hide,toggle,visible}) cannot be listed
-	// here; the runtime guard for it is `isFlowPanel` and the drift record
-	// "Carbon AI assistant (flow takeover)". What the takeover leans on in frappe is:
+	// --- AI action (js/anatomy/shell/assistant.ts) ----------------------------
+	// The header's AI action is a button for Frappe's built-in Flow launcher. What it
+	// leans on in the launcher:
 	[
-		"keys.add_shortcut drops the key's existing handlers first (registering Ctrl+I replaces flow's)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/frappe\.ui\.keys\.off\(shortcut, page\);\s*\/\/ attach new handler\s*frappe\.ui\.keys\.on\(shortcut, handler\)/,
+		"window.flow.toggle exists (the header shows its AI action only when it does)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/window\.flow = \{\s*toggle: \(\) => launcher\.toggle\(\)/,
 	],
 	[
-		"keys.off without a page removes EVERY handler for the key (flow's included)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/frappe\.ui\.keys\.off = function \(key, page\)[\s\S]{0,200}?if \(!page\) return false/,
+		"the launcher toggles on a click on any [data-flow-toggle] (the AI action has no click handler of its own)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/event\.target\.closest\?\.\("\[data-flow-toggle\]"\)\) this\.toggle\(\)/,
 	],
 	[
-		"an action that returns nothing gets preventDefault (Ctrl+I is the browser's own binding)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/prevent_default \|\| prevent_default === undefined/,
+		"the launcher is a <flow-launcher> with an open shadow root holding .panel (the AI action reads its state there)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/document\.createElement\("flow-launcher"\);\s*const root = this\.host\.attachShadow\(\{ mode: "open" \}\)[\s\S]{0,200}?<div class="panel"[^>]*\binert>/,
 	],
 	[
-		"app_ready fires inside startup(), after make_sidebar (why the takeover runs when the header mounts)",
-		"frappe/public/js/frappe/desk.js",
-		/this\.make_sidebar\(\);[\s\S]{0,1200}?trigger\("app_ready"\)/,
+		"the panel is inert while closed and not while open (the AI action's aria-expanded follows it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/this\.panel\.inert = this\.chat\.inert = false[\s\S]*?this\.panel\.inert = this\.chat\.inert = true/,
 	],
 	[
-		"the window-level Escape handler blurs the active element (the failed-load panel stops the event first)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/function handle_escape_key\(e\) \{\s*if \(!e\.isDefaultPrevented\(\)\) close_grid_and_dialog\(\);\s*document\.activeElement\?\.blur\(\);/,
+		"a docked panel pushes the page by --flow-dock-width on html[data-flow-docked] (desk/_ui-shell.scss pulls the fixed header in by the same)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/html\[data-flow-docked\] \{ margin-right: var\(--flow-dock-width\); \}/,
+	],
+	[
+		"the page slides with html[data-flow-sliding] (desk/_ui-shell.scss slides the header with it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/html\[data-flow-sliding\] \{ transition: margin-right/,
 	],
 	[
 		"frappe.is_mobile threshold (the shell never mounts below it)",
