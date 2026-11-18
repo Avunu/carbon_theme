@@ -10,7 +10,7 @@ import {
 	closedFlowState,
 	entrySpecifier,
 	isChatModule,
-	isFlowPanel,
+	isFlowLauncher,
 	MANIFEST_URL,
 	parseManifest,
 	parsePanelState,
@@ -21,22 +21,22 @@ import {
 } from "../../carbon_theme/public/js/anatomy/shell/assistant_gate.ts";
 
 describe("shouldMountAssistant", () => {
-	it("needs flow in boot.versions", () => {
-		assert.equal(shouldMountAssistant({ versions: { frappe: "16.0.0", flow: "0.1.0" } }), true);
-		assert.equal(shouldMountAssistant({ versions: { frappe: "16.0.0" } }), false);
-		assert.equal(shouldMountAssistant({ versions: {} }), false);
+	const launcher = { toggle() {}, open() {} };
+	it("needs Frappe's Flow launcher on the page", () => {
+		assert.equal(shouldMountAssistant(launcher, {}), true);
+		assert.equal(shouldMountAssistant(undefined, {}), false);
+		assert.equal(shouldMountAssistant({ toggle() {} }, {}), false);
 	});
-	it("does not take an empty version for an install", () => {
-		assert.equal(shouldMountAssistant({ versions: { flow: "" } }), false);
+	it("no longer reads the separate flow app's version", () => {
+		assert.equal(shouldMountAssistant(undefined, { versions: { flow: "0.1.0" } }), false);
 	});
-	it("stays off on a read-only site, where flow cannot write its sessions", () => {
-		assert.equal(shouldMountAssistant({ versions: { flow: "0.1.0" }, read_only: true }), false);
-		assert.equal(shouldMountAssistant({ versions: { flow: "0.1.0" }, read_only: false }), true);
+	it("stays off on a read-only site, where Flow cannot write its sessions", () => {
+		assert.equal(shouldMountAssistant(launcher, { read_only: true }), false);
+		assert.equal(shouldMountAssistant(launcher, { read_only: false }), true);
 	});
-	it("tolerates a missing boot or missing versions", () => {
-		assert.equal(shouldMountAssistant(undefined), false);
-		assert.equal(shouldMountAssistant(null), false);
-		assert.equal(shouldMountAssistant({}), false);
+	it("tolerates a missing boot", () => {
+		assert.equal(shouldMountAssistant(launcher, undefined), false);
+		assert.equal(shouldMountAssistant(launcher, null), false);
 	});
 });
 
@@ -78,25 +78,27 @@ describe("panel state", () => {
 });
 
 describe("seedSession", () => {
-	it("seeds flow's session on the first run only", () => {
-		assert.equal(seedSession(null, '{"open":true,"session":"SESS-0001"}'), "SESS-0001");
+	it("seeds the launcher's chat on the first run only", () => {
+		assert.equal(seedSession(null, '{"open":true,"path":"/s/SESS-0001"}'), "SESS-0001");
+		assert.equal(seedSession(null, '{"path":"/s/SESS-0001?tab=files"}'), "SESS-0001");
 	});
 	it("leaves the key alone once the chat has written it, even to a deliberate empty string", () => {
-		assert.equal(seedSession("", '{"session":"SESS-0001"}'), null);
-		assert.equal(seedSession("SESS-0002", '{"session":"SESS-0001"}'), null);
+		assert.equal(seedSession("", '{"path":"/s/SESS-0001"}'), null);
+		assert.equal(seedSession("SESS-0002", '{"path":"/s/SESS-0001"}'), null);
 	});
-	it("seeds an empty session when flow had none or its state is unusable", () => {
+	it("seeds an empty session when the launcher showed no chat or its state is unusable", () => {
 		assert.equal(seedSession(null, null), "");
 		assert.equal(seedSession(null, ""), "");
 		assert.equal(seedSession(null, "{broken"), "");
-		assert.equal(seedSession(null, '{"session":null}'), "");
-		assert.equal(seedSession(null, '{"session":42}'), "");
+		assert.equal(seedSession(null, '{"path":"/"}'), "");
+		assert.equal(seedSession(null, '{"path":42}'), "");
+		assert.equal(seedSession(null, '{"session":"SESS-OLD"}'), "");
 		assert.equal(seedSession(null, "[]"), "");
 	});
 });
 
 describe("reconcileSession", () => {
-	const flow = '{"session":"SESS-FLOW"}';
+	const flow = '{"path":"/s/SESS-FLOW"}';
 	it("keeps the seed and the hands-off rule for the user who owns the pointer", () => {
 		assert.equal(reconcileSession("alice", "alice", null, flow), "SESS-FLOW");
 		assert.equal(reconcileSession("alice", "alice", "SESS-0001", flow), null);
@@ -109,7 +111,7 @@ describe("reconcileSession", () => {
 	it("starts a new chat for another user instead of resuming the previous one's session", () => {
 		assert.equal(reconcileSession("bob", "alice", "SESS-0001", flow), "");
 	});
-	it("does not seed another user from flow's remembered session", () => {
+	it("does not seed another user from the launcher's remembered chat", () => {
 		assert.equal(reconcileSession("bob", "alice", null, flow), "");
 	});
 	it("does not rewrite a pointer that is already empty", () => {
@@ -122,17 +124,12 @@ describe("reconcileSession", () => {
 });
 
 describe("closedFlowState", () => {
-	it("forces open off and keeps the session, width and fullscreen", () => {
-		const closed = closedFlowState('{"open":true,"fullscreen":false,"width":420,"session":"SESS-0001"}');
-		assert.deepEqual(JSON.parse(closed ?? ""), {
-			open: false,
-			fullscreen: false,
-			width: 420,
-			session: "SESS-0001",
-		});
+	it("forces open off and keeps the chat and width", () => {
+		const closed = closedFlowState('{"open":true,"width":420,"path":"/s/SESS-0001"}');
+		assert.deepEqual(JSON.parse(closed ?? ""), { open: false, width: 420, path: "/s/SESS-0001" });
 	});
 	it("adds open: false to a state that never had it", () => {
-		assert.deepEqual(JSON.parse(closedFlowState('{"session":"S"}') ?? ""), { session: "S", open: false });
+		assert.deepEqual(JSON.parse(closedFlowState('{"path":"/s/S"}') ?? ""), { path: "/s/S", open: false });
 	});
 	it("returns null when there is nothing to rewrite", () => {
 		assert.equal(closedFlowState(null), null);
@@ -143,20 +140,17 @@ describe("closedFlowState", () => {
 	});
 });
 
-describe("isFlowPanel", () => {
-	const panel = { show() {}, hide() {}, toggle() {}, visible: false };
-	it("accepts the slice of FlowPanel the takeover calls", () => {
-		assert.equal(isFlowPanel(panel), true);
-		assert.equal(isFlowPanel({ ...panel, visible: true }), true);
+describe("isFlowLauncher", () => {
+	it("accepts Frappe's window.flow", () => {
+		assert.equal(isFlowLauncher({ toggle() {}, open() {} }), true);
 	});
-	it("rejects anything missing a method or a boolean visible", () => {
-		assert.equal(isFlowPanel(null), false);
-		assert.equal(isFlowPanel(undefined), false);
-		assert.equal(isFlowPanel("panel"), false);
-		assert.equal(isFlowPanel({}), false);
-		assert.equal(isFlowPanel({ show() {}, hide() {}, visible: false }), false);
-		assert.equal(isFlowPanel({ ...panel, visible: undefined }), false);
-		assert.equal(isFlowPanel({ ...panel, hide: "hide" }), false);
+	it("rejects anything missing toggle or open", () => {
+		assert.equal(isFlowLauncher(null), false);
+		assert.equal(isFlowLauncher(undefined), false);
+		assert.equal(isFlowLauncher("flow"), false);
+		assert.equal(isFlowLauncher({}), false);
+		assert.equal(isFlowLauncher({ toggle() {} }), false);
+		assert.equal(isFlowLauncher({ toggle: true, open() {} }), false);
 	});
 });
 

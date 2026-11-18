@@ -1,8 +1,9 @@
 // Copyright (c) 2026, Avunu LLC and contributors
 // For license information, please see license.txt
 
-// The only module of the adapter that talks to the network. Every call, streaming or
-// not, is a `fetch` POST to /api/method with the CSRF header, except uploads: those
+// The only module of the adapter that talks to the network. Every call is a `fetch` POST
+// to /api/method with the CSRF header, except the live events of a run, which arrive over
+// the desk's socket.io connection (flow/stream.ts), and uploads: those
 // use XMLHttpRequest (injected as an `UploadTransport`) because `fetch` reports no
 // upload progress. Plain calls do not go
 // through `frappe.xcall`: it rejects with `r?.message`, which is `undefined` for
@@ -12,7 +13,8 @@
 // The network is reached through an injected `FlowEnv` so the module is testable
 // without a server and nothing is read at import time.
 //
-// Ground truth: apps/flow/frontend/src/api/{client,stream}.js and flow/api/api.py.
+// Ground truth: Frappe's built-in Flow (16.60+), frappe/flow/api/api.py and
+// apps/frappe/flow/frontend/src/api/{client,stream}.js.
 
 import type { FrappeFileDoc, FrappeResponse } from "frappe-types";
 import type { FlowEvent } from "./events.ts";
@@ -26,7 +28,8 @@ import {
 	type FlowSessionDoc,
 	type FlowSessionSummary,
 } from "./docs.ts";
-import { readFlowEvents } from "./sse.ts";
+import { FlowStreamRefused, RunAdapter, SessionStream, parseEntriesSnapshot } from "./stream.ts";
+import type { EntriesSnapshot, FlowSocket } from "./stream.ts";
 import type { Translate } from "./tool_labels.ts";
 import { isRecord } from "../types.ts";
 
@@ -41,6 +44,17 @@ export interface FlowEnv {
 	call: (method: string, args?: Record<string, unknown>, options?: CallOptions) => Promise<unknown>;
 	csrfToken: () => string;
 	translate: Translate;
+	/** The desk's socket.io client (`frappe.realtime.socket`), or null when it is not connected. */
+	socket: () => FlowSocket | null;
+}
+
+function isFlowSocket(value: unknown): value is FlowSocket {
+	return (
+		isRecord(value) &&
+		typeof value["on"] === "function" &&
+		typeof value["off"] === "function" &&
+		typeof value["emit"] === "function"
+	);
 }
 
 /**
@@ -58,6 +72,13 @@ export function defaultFlowEnv(): FlowEnv {
 		translate: (source, replace) => {
 			if (typeof __ === "undefined") throw new Error("__ is not available");
 			return replace === undefined ? __(source) : __(source, replace);
+		},
+		socket: () => {
+			if (typeof frappe === "undefined") return null;
+			// frappe-types does not declare frappe.realtime; read it as unknown and prove it
+			const realtime: unknown = Reflect.get(frappe, "realtime");
+			const socket: unknown = isRecord(realtime) ? realtime["socket"] : undefined;
+			return isFlowSocket(socket) ? socket : null;
 		},
 	};
 	return env;
@@ -201,52 +222,145 @@ async function callMethod(
 	return envelope(reply)?.message;
 }
 
-async function* streamMethod(
-	method: string,
-	body: Record<string, unknown>,
+/** Where a session's log ends now: the cursor a new turn's events start after. */
+async function latestSeq(session: string, env: FlowEnv): Promise<number> {
+	// path "all" from past the end: no rows, just the snapshot's latest_seq
+	return (await fetchEntries(session, 2 ** 31 - 1, env)).latest_seq;
+}
+
+async function fetchEntries(session: string, since: number, env: FlowEnv): Promise<EntriesSnapshot> {
+	// the active view is a snapshot of the whole branch; catching up from a cursor needs "all"
+	return parseEntriesSnapshot(
+		await env.call("frappe.flow.api.entries", { session, since, path: since > 0 ? "all" : "active" }),
+	);
+}
+
+/** The Flow Run a turn started (or joined); throws when the reply does not name one. */
+function turnRun(reply: unknown, env: FlowEnv): string {
+	const run = isRecord(reply) ? reply["run"] : undefined;
+	if (typeof run !== "string" || run === "")
+		throw new Error(env.translate("Unexpected response from the server."));
+	return run;
+}
+
+/**
+ * The `FlowEvent`s of one turn: joins the session's room, starts the turn with `trigger`
+ * (which answers with the Flow Run), yields `run_started` for that run, then the run's
+ * events as RunAdapter translates them, and ends after its terminal event. Aborting
+ * `signal` leaves the room and ends the iteration quietly.
+ */
+async function* runEvents(
+	session: string,
+	trigger: () => Promise<unknown>,
 	signal: AbortSignal | undefined,
 	env: FlowEnv,
 ): AsyncGenerator<FlowEvent> {
 	const __ = env.translate;
-	const response = await postMethod(method, body, signal, env);
-	if (!response.body) {
-		throw new FlowHttpError(__("Request failed ({0})", [String(response.status)]), response.status);
+	signal?.throwIfAborted();
+	const socket = env.socket();
+	if (socket === null) {
+		throw new FlowHttpError(__("Live updates are unavailable. Reload the page and try again."), 503);
 	}
-	yield* readFlowEvents(response.body, signal);
+	const stream = new SessionStream({
+		socket,
+		session,
+		since: await latestSeq(session, env),
+		fetchEntries: (since) => fetchEntries(session, since, env),
+		refusedMessage: __("Live updates are unavailable for this conversation. Reopen it to refresh."),
+	});
+	const stop = (): void => stream.close();
+	signal?.addEventListener("abort", stop, { once: true });
+	try {
+		try {
+			await stream.open();
+		} catch (error) {
+			if (error instanceof FlowStreamRefused) throw new FlowHttpError(error.message, 403);
+			throw error;
+		}
+		const run = turnRun(await trigger(), env);
+		yield { type: "run_started", name: run, session };
+		const adapter = new RunAdapter();
+		try {
+			for await (const event of stream) {
+				for (const translated of adapter.push(event)) yield translated;
+				if (adapter.finished) return;
+			}
+		} catch (error) {
+			if (error instanceof FlowStreamRefused) throw new FlowHttpError(error.message, 403);
+			throw error;
+		}
+	} finally {
+		signal?.removeEventListener("abort", stop);
+		stream.close();
+	}
 }
 
-export function startRun(
+/**
+ * A turn: creates the session first when there is none (with the agent and model asked
+ * for), switches an existing session to `model` when it was asked for, then sends the
+ * message with its staged attachments. A session that is already running takes the
+ * message into the active run ("steered"), whose events then stream here.
+ */
+export async function* startRun(
 	params: StartRunParams,
 	signal?: AbortSignal,
 	env: FlowEnv = defaultFlowEnv(),
 ): AsyncGenerator<FlowEvent> {
-	const body: Record<string, unknown> = { input: params.input, stream: true };
-	if (params.session) body["session"] = params.session;
-	// The server throws when an existing session is sent a different agent.
-	if (params.agent && !params.session) body["agent"] = params.agent;
-	if (params.model) body["model"] = params.model;
+	let session = params.session;
+	if (!session) {
+		const args: Record<string, unknown> = {};
+		if (params.agent) args["agent"] = params.agent;
+		if (params.model) args["model"] = params.model;
+		const created = await env.call("frappe.flow.api.create_session", args);
+		const name = isRecord(created) ? created["name"] : undefined;
+		if (typeof name !== "string" || name === "")
+			throw new Error(env.translate("Unexpected response from the server."));
+		session = name;
+	} else if (params.model) {
+		await setSessionModel(session, params.model, env);
+	}
+	const body: Record<string, unknown> = { session, message: params.input };
 	if (params.attachments && params.attachments.length > 0) body["attachments"] = [...params.attachments];
-	return streamMethod("flow.api.start_run", body, signal, env);
+	const target = session;
+	yield* runEvents(target, () => env.call("frappe.flow.api.run", body), signal, env);
 }
 
+/** The model each session was last switched to in this page, so a turn does not repeat the call. */
+const sessionModels = new Map<string, string>();
+
+async function setSessionModel(session: string, model: string, env: FlowEnv): Promise<void> {
+	if (sessionModels.get(session) === model) return;
+	await env.call("frappe.flow.api.set_model", { session, model });
+	sessionModels.set(session, model);
+}
+
+/** Answers the paused run of `session`, one answer per question key: "Approve", "Deny" or free text. */
 export function resumeRun(
-	runName: string,
+	session: string,
 	answers: Readonly<Record<string, string>>,
 	signal?: AbortSignal,
 	env: FlowEnv = defaultFlowEnv(),
 ): AsyncGenerator<FlowEvent> {
-	return streamMethod("flow.api.resume_run", { run_name: runName, answers, stream: true }, signal, env);
+	return runEvents(session, () => env.call("frappe.flow.api.resume", { session, answers }), signal, env);
 }
 
 // -- plain calls --------------------------------------------------------------
 
-export async function stopRun(runName: string, env: FlowEnv = defaultFlowEnv()): Promise<void> {
-	await env.call("flow.api.stop_run", { run_name: runName });
+/** Stops the session's active turn; the flow server records how it ended. */
+export async function stopRun(session: string, env: FlowEnv = defaultFlowEnv()): Promise<void> {
+	await env.call("frappe.flow.api.abort", { session });
 }
 
+/**
+ * Ends whatever the session still has in flight after this page lost track of it (a dropped
+ * connection, a refused stream), then syncs the session so its Flow Runs record the outcome.
+ * Resolves with 1 when a turn was still running, else 0.
+ */
 export async function recoverSession(session: string, env: FlowEnv = defaultFlowEnv()): Promise<number> {
-	const reply = await env.call("flow.api.recover_session", { session });
-	return isRecord(reply) && typeof reply["recovered"] === "number" ? reply["recovered"] : 0;
+	const reply = await env.call("frappe.flow.api.abort", { session });
+	const status = isRecord(reply) ? reply["status"] : undefined;
+	await env.call("frappe.flow.api.session", { session });
+	return status === "aborting" ? 1 : 0;
 }
 
 export async function submitFeedback(
@@ -255,7 +369,7 @@ export async function submitFeedback(
 	comment?: string,
 	env: FlowEnv = defaultFlowEnv(),
 ): Promise<void> {
-	await env.call("flow.api.submit_feedback", {
+	await env.call("frappe.flow.api.submit_feedback", {
 		run_name: runName,
 		rating,
 		comment: comment || null,
@@ -268,8 +382,7 @@ export async function listSessions(
 	env: FlowEnv = defaultFlowEnv(),
 ): Promise<FlowSessionSummary[]> {
 	const filters = { owner: user, source: ["!=", "Trigger"] };
-	// `limit_page_length`, not `limit`: flow's own client sends `limit`, which
-	// frappe.client.get_list silently ignores (its default of 20 applies).
+	// `limit_page_length`, not `limit`: frappe.client.get_list silently ignores `limit`.
 	const reply = await env.call("frappe.client.get_list", {
 		doctype: "Flow Session",
 		filters,
@@ -280,11 +393,11 @@ export async function listSessions(
 	return parseFlowSessionSummaries(reply);
 }
 
-/** The enabled Flow Models the user may pick, in title order. */
+/** The enabled chat models the user may pick, in title order (an embedding model is Knowledge's). */
 export async function listModels(env: FlowEnv = defaultFlowEnv()): Promise<FlowModelOption[]> {
 	const reply = await env.call("frappe.client.get_list", {
 		doctype: "Flow Model",
-		filters: { enabled: 1 },
+		filters: { enabled: 1, embedding: 0 },
 		fields: ["name", "title"],
 		order_by: "title asc",
 		limit_page_length: 50,
@@ -292,8 +405,14 @@ export async function listModels(env: FlowEnv = defaultFlowEnv()): Promise<FlowM
 	return parseFlowModels(reply);
 }
 
+/**
+ * The session with its transcript rows. `frappe.flow.api.session` runs first: for a session
+ * with an open run it syncs the flow server's log into the transcript and the Flow Runs,
+ * which is what the rows below are read from.
+ */
 export async function getSession(name: string, env: FlowEnv = defaultFlowEnv()): Promise<FlowSessionDoc> {
 	const __ = env.translate;
+	await env.call("frappe.flow.api.session", { session: name });
 	const doc = parseFlowSessionDoc(await env.call("frappe.client.get", { doctype: "Flow Session", name }));
 	if (!doc) throw new Error(__("Unexpected response from the server."));
 	return doc;
@@ -328,17 +447,12 @@ export async function renameSession(
 	const __ = env.translate;
 	const value = title.trim();
 	if (value === "") throw new Error(__("A title is required."));
-	await env.call("frappe.client.set_value", {
-		doctype: "Flow Session",
-		name,
-		fieldname: "title",
-		value,
-	});
+	await env.call("frappe.flow.api.set_title", { session: name, title: value });
 }
 
 export async function deleteSession(name: string, env: FlowEnv = defaultFlowEnv()): Promise<void> {
-	// Owner-scoped by Flow Session's `if_owner` permission rows; the server enforces it.
-	await env.call("frappe.client.delete", { doctype: "Flow Session", name });
+	// also drops the session from the flow server; Flow checks the delete permission
+	await env.call("frappe.flow.api.delete_session", { session: name });
 }
 
 // -- uploads ------------------------------------------------------------------
@@ -563,7 +677,7 @@ export async function attachFile(
 	env: FlowEnv = defaultFlowEnv(),
 ): Promise<AttachedFile> {
 	const __ = env.translate;
-	const response = await postMethod("flow.api.attach_file", { file: fileDoc }, signal, env, {
+	const response = await postMethod("frappe.flow.api.attach_file", { file: fileDoc }, signal, env, {
 		failure: uploadFailure(__("The file could not be read."), __),
 	});
 	const reply: unknown = await response.json().catch(() => undefined);

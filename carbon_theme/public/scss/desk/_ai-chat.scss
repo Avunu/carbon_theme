@@ -17,7 +17,7 @@ $ai-narrow: 42rem;
 
 // Stacking, against the verified z-indices: .body-sidebar 1020, its mobile overlay 1021,
 // the UI Shell header and its panels 1030, bootstrap's modal backdrop 1040, modals 1050,
-// flow's #flow-root 1040, toasts and #freeze 2000. 1025 puts the panel above the
+// Frappe's Flow launcher 1035 (hidden while this panel is in charge), toasts and #freeze 2000. 1025 puts the panel above the
 // sidebar (an expanded panel covers it) and under the header, so the trigger stays
 // reachable, and under every dialog.
 .cf-ai {
@@ -84,10 +84,11 @@ $ai-narrow: 42rem;
 	}
 }
 
-// Flow's own slide-over (#flow-root, apps/flow) is the panel this one replaces. It sets
-// inline styles, hence !important; the class is set for as long as the chat is in charge
-// and removed when the chat fails to load, which hands the panel back.
-body.cf-ai-chat #flow-root {
+// Frappe's Flow launcher (<flow-launcher>, frappe/public/js/flow_launcher.bundle.js) is
+// the panel this one replaces. Its host is styled from inside its shadow root, hence
+// !important; the class is set for as long as the chat is in charge and removed when the
+// chat fails to load, which hands the panel back.
+body.cf-ai-chat flow-launcher {
 	display: none !important;
 }
 

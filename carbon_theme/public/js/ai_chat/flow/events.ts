@@ -1,12 +1,12 @@
 // Copyright (c) 2026, Avunu LLC and contributors
 // For license information, please see license.txt
 
-// The frames flow.api.start_run / resume_run send with `stream=1`, as typed values.
-// Source of truth is `_event_to_dict` in flow/api/api.py; each variant below is one
-// branch of it. The frame is `event: <type>\ndata: <json>\n\n` and the JSON repeats
-// the type, so either can name the event.
+// The six events of one run, as the reducer consumes them. They are the frames the
+// separate flow app streamed from start_run / resume_run. Frappe's built-in Flow
+// (16.60+) has a different event model; flow/stream.ts' RunAdapter translates it into
+// this one, keeping the two facts below true, so reduce.ts did not have to change.
 //
-// Two wire facts that bite the consumers of this union:
+// Two facts that bite the consumers of this union:
 //
 // 1. `tool_started` is sent TWICE per call. The first frame is emitted the moment
 //    the model begins streaming the call and carries `arguments: {}`
@@ -99,8 +99,36 @@ function isEventName(name: string): name is FlowEvent["type"] {
 	return FLOW_EVENT_NAMES.some((known) => known === name);
 }
 
+/** The two answers of a tool confirmation; any other text redirects the model. */
+const APPROVAL_OPTIONS = ["Approve", "Deny"];
+
+/**
+ * A question for one call waiting for approval in the built-in Flow: an `approval_required`
+ * event's `calls[]` entry, or a row of a Paused Flow Run's `questions` JSON, both
+ * `{id, name, args, prompt}` (frappe/flow/lib/session.py `PENDING_KEYS`). The answer is
+ * keyed by the call id and is "Approve", "Deny" or free text, as before.
+ */
+export function pendingCallQuestion(value: unknown): FlowQuestion | null {
+	if (!isRecord(value)) return null;
+	const id = value["id"];
+	if (typeof id !== "string" || id === "") return null;
+	const name = typeof value["name"] === "string" ? value["name"] : "";
+	const prompt = value["prompt"];
+	return {
+		prompt: typeof prompt === "string" && prompt.trim() !== "" ? prompt : `Approve \`${name || id}\`?`,
+		options: [...APPROVAL_OPTIONS],
+		multi_select: false,
+		allow_other: true,
+		key: id,
+	};
+}
+
 export function parseFlowQuestion(value: unknown): FlowQuestion | null {
 	if (!isRecord(value)) return null;
+	// the built-in Flow's pending call: an id and no options
+	if (!("options" in value) && !("key" in value) && typeof value["id"] === "string") {
+		return pendingCallQuestion(value);
+	}
 	const prompt = value["prompt"];
 	if (typeof prompt !== "string") return null;
 	const options = value["options"];

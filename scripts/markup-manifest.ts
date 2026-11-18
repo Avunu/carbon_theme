@@ -936,35 +936,63 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		/sidebar_for_module\(module\)\s*\{\s*if \(!module\) return undefined;\s*const all = frappe\.boot\.module_sidebars \|\| \{\};\s*return all\[module\] \|\| Object\.values\(all\)\.find\(\(entry\) => entry\.module === module\)/,
 	],
 
-	// --- AI assistant takeover (js/anatomy/shell/assistant.ts) --------------
-	// apps/flow is not frappe's, and CI checks frappe out alone, so its panel
-	// (#flow-root, frappe.flow.panel.{show,hide,toggle,visible}) cannot be listed
-	// here; the runtime guard for it is `isFlowPanel` and the drift record
-	// "Carbon AI assistant (flow takeover)". What the takeover leans on in frappe is:
+	// --- AI assistant takeover (js/anatomy/shell/assistant.ts, flow_entry.ts) --
+	// The Carbon chat replaces Frappe's built-in Flow panel (Frappe 16.60+). What the
+	// takeover leans on in the launcher:
 	[
-		"keys.add_shortcut drops the key's existing handlers first (registering Ctrl+I replaces flow's)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/frappe\.ui\.keys\.off\(shortcut, page\);\s*\/\/ attach new handler\s*frappe\.ui\.keys\.on\(shortcut, handler\)/,
+		"window.flow = {toggle, open} (the gate, the stand-in and the hand-back)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/window\.flow = \{\s*toggle: \(\) => launcher\.toggle\(\),\s*open: /,
 	],
 	[
-		"keys.off without a page removes EVERY handler for the key (flow's included)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/frappe\.ui\.keys\.off = function \(key, page\)[\s\S]{0,200}?if \(!page\) return false/,
+		"Ctrl+I is caught on window in the capture phase (flow_entry.ts registers first, at bundle load)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/window\.addEventListener\("keydown", \(event\) => this\.toggle_by_key\(event\), true\)/,
 	],
 	[
-		"an action that returns nothing gets preventDefault (Ctrl+I is the browser's own binding)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/prevent_default \|\| prevent_default === undefined/,
+		"the launcher stops Ctrl+I where it catches it (why flow_entry.ts cannot just listen later)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/toggle_by_key\(event\) \{[\s\S]{0,300}?event\.preventDefault\(\);\s*event\.stopPropagation\(\);/,
 	],
 	[
-		"app_ready fires inside startup(), after make_sidebar (why the takeover runs when the header mounts)",
-		"frappe/public/js/frappe/desk.js",
-		/this\.make_sidebar\(\);[\s\S]{0,1200}?trigger\("app_ready"\)/,
+		"a [data-flow-toggle] click is caught on document (flow_entry.ts registers first)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/document\.addEventListener\("click", \(event\) => \{\s*if \(event\.target\.closest\?\.\("\[data-flow-toggle\]"\)\) this\.toggle\(\)/,
 	],
 	[
-		"the window-level Escape handler blurs the active element (the failed-load panel stops the event first)",
-		"frappe/public/js/frappe/ui/keyboard.js",
-		/function handle_escape_key\(e\) \{\s*if \(!e\.isDefaultPrevented\(\)\) close_grid_and_dialog\(\);\s*document\.activeElement\?\.blur\(\);/,
+		"the launcher is a deferred script at the end of <body> (so it runs after carbon_anatomy)",
+		"frappe/flow/launcher.py",
+		/<script src="\{bundled_asset\("flow_launcher\.bundle\.js"\)\}" defer/,
+	],
+	[
+		"the launcher keeps its state under flow_launcher and reopens when it was left open",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/const STORE_KEY = "flow_launcher";[\s\S]*?if \(this\.state\.open\) this\.open\(/,
+	],
+	[
+		"the launcher names its chat by path /s/<session> (seedSession reads it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/this\.state\.path = `\/s\/\$\{session\}`/,
+	],
+	[
+		"the launcher is a <flow-launcher> with an open shadow root holding .panel (desk/_ai-chat.scss hides it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/document\.createElement\("flow-launcher"\);\s*const root = this\.host\.attachShadow\(\{ mode: "open" \}\)[\s\S]{0,200}?<div class="panel"[^>]*\binert>/,
+	],
+	[
+		"the panel is inert while closed and not while open (hideFlow reads it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/this\.panel\.inert = this\.chat\.inert = false[\s\S]*?this\.panel\.inert = this\.chat\.inert = true/,
+	],
+	[
+		"a docked panel pushes the page by --flow-dock-width on html[data-flow-docked] (desk/_ui-shell.scss, for the hand-back)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/html\[data-flow-docked\] \{ margin-right: var\(--flow-dock-width\); \}/,
+	],
+	[
+		"the page slides with html[data-flow-sliding] (desk/_ui-shell.scss slides the header with it)",
+		"frappe/public/js/flow_launcher.bundle.js",
+		/html\[data-flow-sliding\] \{ transition: margin-right/,
 	],
 	[
 		"frappe.is_mobile threshold (the shell never mounts below it)",
