@@ -26,7 +26,7 @@ bench build
 
 `version-16` is the release branch: it always holds the latest release. To follow unreleased changes, use `--branch develop` instead.
 
-Run a full `bench build`, not a partial one such as `bench build --apps frappe`. The theme's stylesheets carry the same names as Frappe's, and the build that runs last decides which ones the site serves. After compiling, the build runs the app's own `yarn build`, which points the names back at the theme's files (`scripts/patch-assets.ts`), and checks the theme against the installed Frappe.
+Run a full `bench build`, not a partial one such as `bench build --apps frappe`. The theme's stylesheets carry the same names as Frappe's, and the build that runs last decides which ones the site serves. After compiling, the build runs the app's own `yarn build`, which points the names back at the theme's files (`scripts/patch-assets.ts`), checks the theme against the installed Frappe and builds the AI assistant's bundle.
 
 `bench get-app` installs the npm dependencies. If the first build stops on a missing import, run `bench setup requirements` and build again.
 
@@ -45,6 +45,7 @@ The install also runs `carbon_theme.build.patch_assets` (an `after_app_install` 
 1. Reload the desk. The header across the top is Carbon's: dark grey, with the module's links. On a site served from `localhost` or a `*.localhost` name it is yellow with diagonal stripes instead: see [The development marker](configuration.md#the-development-marker).
 2. In `sites/assets/assets.json`, the `desk.bundle.css` entry points at a file under `/assets/carbon_theme/dist/css/`. If it points under `/assets/frappe/`, run `bench build` again.
 3. In the browser's developer tools, the fonts are IBM Plex, loaded from `/assets/carbon_theme/fonts/`, and the `<html>` element carries `--cds-background` and the other `--cds-*` custom properties.
+4. With flow installed, `/assets/carbon_theme/dist/ai_chat/manifest.json` answers and names an `entry.<hash>.js` and a `chat.<hash>.css` that exist beside it. The desk requests it only when someone first opens the assistant.
 
 ## Upgrade
 
@@ -71,6 +72,7 @@ What stays behind:
 
 - The Carbon stylesheets. They are served to every site on the bench while the app is in `apps/` and built. To return the bench to Frappe's own look, uninstall the app from every site, run `bench remove-app carbon_theme` (it refuses while any site still has the app) and then `bench build`.
 - A `carbon_dev_indicator` key in `site_config.json`, if you set one. Remove it with `bench --site <SITE_NAME> set-config carbon_dev_indicator None`: Frappe deletes a key whose value is `None`.
+- Files that people attached to AI assistant conversations. They belong to the flow app and stay until flow removes them.
 
 ## Next
 

@@ -43,7 +43,7 @@ Full documentation: [docs.avunu.net/carbon-theme/docs/](https://docs.avunu.net/c
 - **Dev indicator:** on `localhost` and `*.localhost` sites the header is yellow with hazard stripes, so a development tab is not mistaken for production.
 - **Carbon charts:** `frappe.Chart` gets Carbon's 14-colour categorical palettes when the caller passes no colours, and charts re-theme when the desk theme changes.
 - **IBM Plex** fonts, self-hosted, with IBM Plex Mono for numbers and dates in tables.
-- **AI assistant button:** the header gets a button that opens Frappe's built-in Flow panel (Frappe 16.60 and later), for users who can use Flow.
+- **AI assistant panel:** when the [flow](https://github.com/frappe/flow_client) app is installed, the header gets a Carbon AI Chat panel that replaces flow's own, with conversation history, feedback and file attachments.
 - **Drift audits** (`yarn audit:drift`) that fail when a Carbon token, a Frappe selector or the asset shadow the theme depends on has changed, because those breakages are otherwise silent.
 
 <!-- frappe-nix:begin compatibility -->
@@ -86,19 +86,20 @@ The theme works without configuration. Two things can be set:
 - **frappe-ui apps.** An `after_request` hook adds `carbon_frappe_ui.bundle.css` and the brand stylesheet to any HTML page that loads a Vite module entry.
 - **JavaScript bundles** add the chart palettes, the UI Shell header and the table engine. Each patch calls the original and falls back to Frappe's own behaviour if what it patches is missing.
 
-[docs/development/architecture.md](docs/development/architecture.md) covers each part in detail; the user guides are [the header](docs/ui-shell.md) and [tables](docs/tables.md).
+[docs/development/architecture.md](docs/development/architecture.md) covers each part in detail; the user guides are [the header](docs/ui-shell.md), [tables](docs/tables.md) and [the AI assistant](docs/ai-assistant.md).
 
 ## Limitations
 
 - **The theme applies to the whole bench.** `assets.json` is shared by every site on a bench, so sites that do not have the app installed get its stylesheets too. Run it on a bench of its own.
 - **Partial builds and `bench watch` undo the theme.** `bench build --apps frappe` and `bench watch` point the shadowed bundles back at Frappe's until the next full `bench build` or `bench migrate`. Nothing errors; the desk looks like stock Frappe again. After a watch session, run `node scripts/patch-assets.ts` in the app's directory.
 - **Shadowing depends on undocumented behaviour** of how Frappe names and merges `assets.json` entries. A Frappe change there can stop the theme from loading.
-- **No UI Shell header on phones.** Below 768px wide Frappe's own navbar is kept; Ctrl/Cmd+I still opens Flow. It is also kept wherever Frappe fills the header itself: on read-only sites, while impersonating a user and while an announcement widget shows.
+- **No UI Shell header or assistant on phones.** Below 768px wide Frappe's own navbar is kept. It is also kept wherever Frappe fills the header itself: on read-only sites, while impersonating a user and while an announcement widget shows.
 - **Child-table columns are sized by the Columns property, not by a docfield Width.** A field's `columns` (1-12) sets its share of the table's width; a docfield `width` only sets that share when there is no `columns`, where Frappe would use it as a fixed pixel width. A width a user drags or types in Configure Columns is kept exactly.
 - **Column pinning does not work on child tables.** `df.sticky` and the leading gutters do not stay fixed when a child table scrolls sideways; the List and Report views are not affected.
 - **Some tables are not replaced:** the Data Import preview and the System Console keep the stock frappe-datatable (still themed), and `frappe.ui.EmbeddedList` keeps its plain table.
 - **Older frappe-ui apps are themed on a best-effort basis.** Apps on frappe-ui v0 (and flow's `beta.3`) use older token names, some of which cannot be mapped exactly; CRM's `1.0.0-beta.29` can show some coloured text one shade off.
 - **E-mail** is inlined by Premailer, which supports no CSS variables, so e-mail gets Carbon's default colours, not the brand colours. On website pages, Bootstrap utilities such as `.text-primary` also keep the Website Theme's colour.
+- **The AI assistant** needs the flow app. It does not tell the model which document is open, and files a user attaches stay on the site as private files until flow's 30-day purge.
 
 [docs/troubleshooting.md](docs/troubleshooting.md) lists the messages the theme shows and how to fix what undoes it.
 

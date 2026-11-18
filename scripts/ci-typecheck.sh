@@ -5,7 +5,7 @@
 #   check:major   package.json's major is the frappe major the flake pins
 #   codegen       `yarn codegen` leaves the committed generated files unchanged
 #   compile       the standalone SCSS compile against frappe's sources
-#   audit:drift   the token and markup audits, strict, against frappe,
+#   audit:drift   the token, markup and ai-chat audits, strict, against frappe,
 #                 erpnext and hrms at the revisions flake.lock pins
 #
 # The gate exports FRAPPE_PATH (`frappe-nix pin-path frappe`) and, with

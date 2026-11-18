@@ -73,8 +73,9 @@ bench --site <SITE_NAME> set-config carbon_dev_indicator 0
 The theme checks one role, **System Manager**:
 
 - Only a System Manager can open and change **Carbon Settings**.
+- In the AI assistant, a System Manager also sees the set-up steps when flow is not configured yet: see [Use the AI assistant](ai-assistant.md#before-the-assistant-is-set-up).
 
-Everything else follows Frappe's own permissions. The header shows what the sidebar shows you, the tables show what the list and report show you, and Flow, which the AI assistant button opens, applies its own permissions.
+Everything else follows Frappe's own permissions. The header shows what the sidebar shows you, the tables show what the list and report show you, and the assistant can do only what flow allows you.
 
 ## What the app adds to your site
 
@@ -102,8 +103,10 @@ The app adds no custom fields or property setters, overrides no doctype class, r
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `carbon_charts.bundle`  | Gives `frappe.Chart` Carbon's categorical palettes when the caller passes no colours, and re-themes charts when the desk theme changes. |
 | `carbon_desk.bundle`    | Marks formatted numbers and dates so tables show them in IBM Plex Mono.                                                                 |
-| `carbon_anatomy.bundle` | The UI Shell header, the page header and the button that opens Frappe's Flow. See [Use the header](ui-shell.md).                        |
+| `carbon_anatomy.bundle` | The UI Shell header, the page header and the AI assistant's button. See [Use the header](ui-shell.md).                                  |
 | `carbon_tables.bundle`  | The table engine behind child tables, the List view and the Report and Query views. See [Work with tables](tables.md).                  |
+
+The AI assistant's own code is not in these bundles. It is loaded from `/assets/carbon_theme/dist/ai_chat/` the first time someone opens the assistant.
 
 ### Hooks
 

@@ -22,8 +22,9 @@
 //                    (shell/utilities.ts)
 //   6 Switcher     — the apps, as /desk lays them out, in a right header panel
 //                    (shell/switcher.ts)
-//   7 Assistant    — when Frappe's Flow launcher is on the page, a button that
-//                    opens it, just before the switcher (shell/assistant.ts)
+//   7 Assistant    — when flow is installed, the AI chat's action just before
+//                    the switcher; its panel is a body-level aside
+//                    (shell/assistant.ts)
 //
 // Everything the header shows is read from `frappe.app.sidebar` (shell/model.ts):
 // frappe's module sidebar is what resolves a route to a shell, names the app that
@@ -68,7 +69,7 @@ import { readModel } from "./shell/model.ts";
 import type { ShellModel } from "./shell/model.ts";
 import { mountAssistant } from "./shell/assistant.ts";
 import type { ShellAssistant } from "./shell/assistant.ts";
-import { isFlowLauncher } from "./shell/assistant_gate.ts";
+import { shouldMountAssistant } from "./shell/assistant_gate.ts";
 import { mountNav } from "./shell/nav.ts";
 import type { ShellNav } from "./shell/nav.ts";
 import { mountSwitcher } from "./shell/switcher.ts";
@@ -134,16 +135,15 @@ function placeActions(s: Shell): void {
 }
 
 /**
- * The assistant is optional (Frappe adds its Flow launcher only for users who may use
- * Flow) and must never take the header down with it: a throw leaves the bar as it was,
- * minus the action. It rides on the header, so below the mobile breakpoint (where
- * `mount()` leaves frappe's header alone) there is no trigger; Ctrl/Cmd+I still opens Flow.
+ * The assistant is optional (flow may be absent) and must never take the header
+ * down with it: a throw leaves the bar as it was, minus the action. It rides on the
+ * header, so below the mobile breakpoint (where `mount()` leaves frappe's header alone)
+ * there is no trigger and no panel.
  */
 function mountOptionalAssistant(global: HTMLElement): ShellAssistant | null {
-	const flow: unknown = Reflect.get(window, "flow");
-	if (!isFlowLauncher(flow)) return null;
+	if (!shouldMountAssistant(window.frappe && frappe.boot)) return null;
 	try {
-		const assistant = mountAssistant(global, flow);
+		const assistant = mountAssistant(global);
 		record("Carbon AI assistant (mount)", true);
 		return assistant;
 	} catch (e) {
