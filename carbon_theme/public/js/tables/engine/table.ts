@@ -457,6 +457,14 @@ export interface CarbonTableOptions<TData extends RowData = CarbonTableData> {
 	expandable?: boolean;
 	sortable?: boolean;
 	resizable?: boolean;
+	/**
+	 * Let a body cell's text wrap and its row grow to show all of it, instead of
+	 * ending one line at an ellipsis. Not Carbon's own behaviour, so it is off
+	 * unless an adapter turns it on (Carbon Settings > Grow Rows to Fit Text, via
+	 * `tables/flags.ts`). `rowHeight` becomes the MINIMUM height of a row, and a
+	 * virtualized table measures its rows instead of assuming that height.
+	 */
+	autoRowHeight?: boolean;
 	reorderable?: boolean;
 	virtualize?: CarbonTableVirtualize;
 	emptyMessage?: string;
@@ -520,6 +528,7 @@ const DEFAULTS: ResolvedCarbonTableOptions = {
 	expandable: false,
 	sortable: true,
 	resizable: true,
+	autoRowHeight: false,
 	reorderable: false,
 	virtualize: "auto",
 	emptyMessage: "",
@@ -954,8 +963,11 @@ export default class CarbonTable<TData extends RowData = CarbonTableData>
 		if (this.destroyed) return;
 		const rows = this.table.getRowModel().rows;
 		const rowHeight = this.rowHeightPx;
-		if (this.container) this.container.style.setProperty("--cf-row-height", `${rowHeight}px`);
-		this.virtualizer.sync(rows.length, rowHeight, this.renderer.scroll);
+		if (this.container) {
+			this.container.style.setProperty("--cf-row-height", `${rowHeight}px`);
+			toggleClass(this.container, "cf-table--wrap", this.options.autoRowHeight);
+		}
+		this.virtualizer.sync(rows.length, rowHeight, this.renderer.scroll, this.options.autoRowHeight);
 		toggleClass(this.renderer.table, CARBON.sortableTable, this.options.sortable !== false);
 		// NOT `cds--data-table--sticky-header`. Carbon implements that by setting
 		// `display: block` on the table and `display: flex` on thead/tbody/tr,
@@ -991,14 +1003,31 @@ export default class CarbonTable<TData extends RowData = CarbonTableData>
 		return Object.keys(expanded).some((k) => expanded[k]);
 	}
 
-	getRenderRows(): { rows: CarbonRow<TData>[]; paddingTop: number; paddingBottom: number } {
+	getRenderRows(): { rows: CarbonRow<TData>[]; start: number; paddingTop: number; paddingBottom: number } {
 		const rows = this.table.getRowModel().rows;
 		const win = this.virtualizer.window(rows.length);
 		return {
 			rows: rows.slice(win.start, win.end),
+			start: win.start,
 			paddingTop: win.paddingTop,
 			paddingBottom: win.paddingBottom,
 		};
+	}
+
+	/** The row model's id at `index`: what a measured row height is kept under. */
+	rowKey(index: number): string | number {
+		const row = this.table.getRowModel().rows[index];
+		return row ? row.id : index;
+	}
+
+	/** Hand a rendered row to the virtualizer to measure; a no-op unless rows are measured. */
+	measureRow(node: HTMLElement, index: number): void {
+		this.virtualizer.measureRow(node, index);
+	}
+
+	/** Let the virtualizer drop the rows that left the document. */
+	pruneMeasuredRows(): void {
+		this.virtualizer.pruneMeasured();
 	}
 
 	columnAlign(column: CarbonColumn<TData>): RenderColumnAlign {

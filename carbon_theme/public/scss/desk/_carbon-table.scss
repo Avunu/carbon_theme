@@ -112,6 +112,63 @@
 		white-space: nowrap;
 	}
 
+	// GROW ROWS TO FIT TEXT (Carbon Settings > Tables) — OFF unless the engine is
+	// given `autoRowHeight`, which puts this class on the container.
+	//
+	// Off, a body cell is one line that ends in an ellipsis. On, its text wraps
+	// and the row grows to hold it: `block-size: var(--cf-row-height)` on the row
+	// is a MINIMUM in a table, so a one-line row stays at Carbon's height and only
+	// a row with more text gets taller. Body rows only; a header label stays one
+	// line so the header keeps Carbon's height.
+	//
+	// frappe sets the same nowrap/ellipsis pair on several nested elements of a
+	// List cell (`.list-row-col`, `.level-item`, the link), so the wrapper alone
+	// is not enough. Status badges keep their one line: they are tokens, and a
+	// wrapped pill is worse than a clipped one.
+	&--wrap {
+		tbody .cf-table__cell-content,
+		tbody .ellipsis:not(.es-badge) {
+			white-space: normal;
+			text-overflow: clip;
+			overflow-wrap: anywhere;
+		}
+
+		// A number keeps its one line. Right-aligned is how every adapter marks a
+		// numeric column, and `$ 100.00` split after the symbol is unreadable;
+		// better that it ends in an ellipsis until the column is wide enough.
+		tbody .cf-table__cell--right .cf-table__cell-content,
+		tbody .cf-table__cell--right .ellipsis {
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		// frappe's `.level-item` is `flex: 0 0 auto`, so the List subject (the name
+		// beside the row checkbox) never shrinks to the room that is left and
+		// overhangs its cell by the checkbox's width; the cell then clips it. With
+		// one line that only hides an ellipsis, but wrapped it would lose the end of
+		// every line, so here the name is allowed to shrink.
+		.list-subject > .level-item:not(.select-like) {
+			flex: 1 1 0;
+			min-inline-size: 0;
+		}
+
+		// Room above and below a wrapped line. Sized from the row height so that a
+		// one-line cell still fits it exactly (Carbon's 48px row: a 24px line, the
+		// 1px rule, and the rest split above and below) and no row grows until its
+		// text actually wraps. The Grid insets its own cells (see
+		// `.cf-table__cell--grid` below), so it is left out.
+		tbody .cf-table__cell:not(.cf-table__cell--grid) {
+			padding-block: calc((var(--cf-row-height, 48px) - 1.5rem - 1px) / 2);
+		}
+
+		// The Grid's cell is the `.grid-static-col` inside the <td> (the <td> has no
+		// padding of its own), and it already insets itself sideways with
+		// !important, so the same room above and below is asked for the same way.
+		tbody .grid-static-col {
+			padding-block: calc((var(--cf-row-height, 40px) - 1.5rem - 1px) / 2) !important;
+		}
+	}
+
 	// Spacer rows stand in for the virtualized rows above and below the window.
 	// They must contribute height and nothing else.
 	&__spacer > td {
