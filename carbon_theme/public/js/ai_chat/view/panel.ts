@@ -25,6 +25,8 @@
 //       cds-aichat-input-send-control[slot=send-control]
 //       the attach button, chips, progress strip and error line (view/attachments.ts), only when
 //       flow listed the file types it reads
+//       div.cf-ai-model[slot=message-actions]               the model picker (view/model_picker.ts), hidden
+//                                                           while fewer than two Flow Models are enabled
 //
 // The announcer sits in the messages slot, not directly under the shell: the shell renders
 // only named slots, and a child assigned to none is not in the flat tree, so a live region
@@ -32,6 +34,7 @@
 import { createAnnouncer } from "../announce.ts";
 import type { Controller } from "../controller.ts";
 import { createErrorNotification, el } from "../dom.ts";
+import { createModelPicker } from "./model_picker.ts";
 import {
 	EVENTS,
 	createChatHeader,
@@ -288,6 +291,9 @@ export function createPanel(deps: PanelDeps): Panel {
 		body.append(attachments.dropOverlay);
 	}
 
+	const modelPicker = createModelPicker({ translate: __, store, controller, announcer });
+	promptLineShell.append(modelPicker.element);
+
 	const home = createHome({
 		translate: __,
 		firstName: deps.firstName,
@@ -434,6 +440,7 @@ export function createPanel(deps: PanelDeps): Panel {
 	let setup = false;
 	let probeToken = 0;
 	function probeAgents(): void {
+		void controller.loadModels();
 		probeToken += 1;
 		const mine = probeToken;
 		Promise.resolve()
@@ -647,6 +654,7 @@ export function createPanel(deps: PanelDeps): Panel {
 			cancelAnimationFrame(pressedFrame);
 			for (const cleanup of cleanups) cleanup();
 			attachments?.dispose();
+			modelPicker.dispose();
 			history.dispose();
 			list.dispose();
 			home.dispose();
