@@ -57,6 +57,7 @@ describe("initial state", () => {
 			session: null,
 			pendingUploads: [],
 			hasInFlightUploads: false,
+			model: null,
 		});
 	});
 
@@ -618,6 +619,7 @@ describe("reset", () => {
 			session: null,
 			pendingUploads: [],
 			hasInFlightUploads: false,
+			model: null,
 		});
 		assert.equal(store.getMessageState("q1"), undefined);
 		assert.equal(store.getMessageState("r1"), undefined);
@@ -967,16 +969,41 @@ describe("pending uploads", () => {
 });
 
 describe("state snapshot type", () => {
-	it("exposes the seven ChatState fields only", () => {
+	it("exposes the eight ChatState fields only", () => {
 		const state: ChatState = createChatStore().get();
 		assert.deepEqual(Object.keys(state).sort(), [
 			"activeResponseId",
 			"error",
 			"hasInFlightUploads",
 			"messages",
+			"model",
 			"pendingUploads",
 			"session",
 			"status",
 		]);
+	});
+});
+
+describe("setModel", () => {
+	it("stores the model and notifies only when it changes", () => {
+		const store = createChatStore({ status: "ready" });
+		const seen: (string | null)[] = [];
+		store.select(
+			(state) => state.model,
+			(model) => void seen.push(model),
+		);
+		store.setModel("m-a");
+		store.setModel("m-a");
+		store.setModel(null);
+		assert.equal(store.get().model, null);
+		assert.deepEqual(seen, ["m-a", null]);
+	});
+
+	it("is cleared by reset unless the override names one", () => {
+		const store = createChatStore({ status: "ready", model: "m-a" });
+		store.reset();
+		assert.equal(store.get().model, null);
+		store.reset({ model: "m-b" });
+		assert.equal(store.get().model, "m-b");
 	});
 });

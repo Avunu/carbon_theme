@@ -1,0 +1,16 @@
+// The prompt line's model picker. Markup: js/ai_chat/view/model_picker.ts.
+// the slot's own display would beat the UA rule that `hidden` relies on
+.cf-ai-model[hidden] {
+	display: none;
+}
+
+.cf-ai-model {
+	display: flex;
+	align-items: center;
+	min-inline-size: 0;
+}
+
+.cf-ai-model__button {
+	max-inline-size: 12rem;
+	color: var(--cds-text-secondary);
+}
