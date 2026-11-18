@@ -95,6 +95,11 @@ const scss = `
 :root { --carbon-border-subtle: var(--cds-border-subtle-01); }
 [data-theme="dark"] { --carbon-border-subtle: var(--cds-border-subtle-00); }
 @import "carbon_theme/public/scss/desk/carbon-table";
+/* Bootstrap's reset, which the desk has and this page does not. The engine hides
+   its spacer rows with the \`hidden\` attribute, and its own \`tr { display:
+   table-row }\` outranks the browser's rule for it, so without this a spacer that
+   has been hidden keeps its whole height and the scroll area doubles. */
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; font-family: "IBM Plex Sans", system-ui, sans-serif;
   background: var(--cds-background); color: var(--cds-text-primary); }
 #host { height: calc(100vh - 60px); }

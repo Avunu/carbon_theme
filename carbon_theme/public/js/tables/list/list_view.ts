@@ -27,6 +27,7 @@
 // back to frappe's original.
 import { safePatch } from "../../anatomy/patch.ts";
 import CarbonTable, { isColumnResize } from "../engine/table.ts";
+import { tableOptionsFromFlags } from "../flags.ts";
 import { listProfile } from "./classes.ts";
 import { MAX_WIDTH, MIN_WIDTH, clampWidth, estimateWidth, metaWidth } from "../widths.ts";
 import type { CarbonColumnSpec } from "../engine/table.ts";
@@ -488,7 +489,7 @@ export default function installListView(): void {
 						rowHeight: 48,
 						profile: listProfile(),
 						sortable: false,
-						resizable: true,
+						...tableOptionsFromFlags(),
 						inlineFilters: false,
 						emptyMessage: "",
 						// The engine scrolls INSIDE `.result-container` (desk/

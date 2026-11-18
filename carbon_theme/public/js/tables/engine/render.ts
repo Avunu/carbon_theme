@@ -123,6 +123,8 @@ export interface RenderTable {
 /** The window of rows to draw, as `host.getRenderRows()` reports it. */
 export interface RenderRowSlice {
 	readonly rows: readonly RenderRow[];
+	/** The index of `rows[0]` in the full row model. */
+	readonly start: number;
 	/** Height of the leading spacer row, in px. */
 	readonly paddingTop: number;
 	/** Height of the trailing spacer row, in px. */
@@ -245,6 +247,10 @@ export interface TableRendererHost<THost> {
 
 	/** The rows to draw plus the two spacer heights standing in for the rest. */
 	getRenderRows(): RenderRowSlice;
+	/** Measure a rendered row (once it is in the document); a no-op unless rows are measured. */
+	measureRow(node: HTMLElement, index: number): void;
+	/** Drop measurement of rows that left the document. */
+	pruneMeasuredRows(): void;
 
 	columnAlign(column: RenderColumn): RenderColumnAlign;
 	columnLabel(column: RenderColumn): string;
@@ -668,9 +674,12 @@ export default class TableRenderer<THost extends TableRendererHost<THost>> {
 		}
 
 		const seen = new Set<string>();
+		const rendered: HTMLTableRowElement[] = [];
 		for (const row of slice.rows) {
 			seen.add(row.id);
-			desired.push(this.renderRow(row, leaf));
+			const tr = this.renderRow(row, leaf);
+			rendered.push(tr);
+			desired.push(tr);
 			// Addendum rows are ADAPTER-OWNED but ENGINE-PLACED, so the engine
 			// has to own their removal as well. `reconcileOrder` only positions
 			// the nodes it is given; anything left behind stays in the <tbody>
@@ -717,6 +726,10 @@ export default class TableRenderer<THost extends TableRendererHost<THost>> {
 			}
 		}
 		reconcileOrder(this.tbody, desired);
+
+		// Measured only now: a row that is not yet in the <tbody> has no height.
+		rendered.forEach((tr, i) => this.host.measureRow(tr, slice.start + i));
+		this.host.pruneMeasuredRows();
 	}
 
 	renderRow(row: RenderRow, leaf: readonly RenderColumn[]): HTMLTableRowElement {

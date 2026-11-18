@@ -39,6 +39,10 @@ declare global {
 			header_bg?: string | null;
 			/** Header Text · Color */
 			header_text?: string | null;
+			/** Allow Column Resizing · Check */
+			table_column_resize?: 0 | 1;
+			/** Grow Rows to Fit Text · Check */
+			table_auto_row_height?: 0 | 1;
 		}
 	}
 }
