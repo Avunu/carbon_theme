@@ -60,6 +60,30 @@ interface RangeState {
 	max: number;
 }
 
+/** What a page loaded with `?resize=0` and one loaded with `?wrap=1` each draw. */
+interface OptInState {
+	handles: number;
+	wrapClass: boolean;
+	rowsRendered: number;
+	/** Tallest and shortest rendered body row, in px. */
+	maxRow: number;
+	minRow: number;
+	measured: boolean;
+}
+
+/** The measured window at one scroll position of a `?wrap=1` page. */
+interface WindowState {
+	scrollTop: number;
+	scrollHeight: number;
+	rendered: number;
+	firstIndex: number;
+	lastIndex: number;
+	contiguous: boolean;
+	/** Gap between the rows drawn and each edge of the viewport; negative is overlap. */
+	gapAbove: number;
+	gapBelow: number;
+}
+
 /** Column width either side of a programmatic resize. */
 interface ResizeState {
 	before: number;
@@ -505,6 +529,88 @@ try {
 	await page.eval(`document.documentElement.dataset.theme='dark'`);
 	await new Promise((r) => setTimeout(r, 400));
 	await page.screenshot(SHOT + "/engine-dark.png");
+
+	// --- the two opt-in behaviours (Carbon Settings > Tables). Each page is loaded
+	// with the option in question and nothing else changed, so what differs is
+	// what the option does.
+	const optIn = (url: string) =>
+		page
+			.goto(`http://127.0.0.1:${fixturePort}/${url}`)
+			.then(() => page.waitFor(`!!window.demo && !!document.querySelector('.cf-table__row')`))
+			.then(() =>
+				page.eval<OptInState>(`new Promise(res => setTimeout(() => {
+          const rows = [...document.querySelectorAll('.cf-table__body .cf-table__row')];
+          const heights = rows.map(r => r.getBoundingClientRect().height);
+          res({
+            handles: document.querySelectorAll('.cf-table__resize-handle').length,
+            wrapClass: document.querySelector('.cf-table').classList.contains('cf-table--wrap'),
+            rowsRendered: rows.length,
+            maxRow: Math.max(...heights),
+            minRow: Math.min(...heights),
+            measured: window.demo.table.virtualizer.measured,
+          });
+        }, 500))`),
+			);
+
+	const plain = await optIn("?rows=500");
+	ok(
+		"plain page: handles, no wrap, rows at Carbon's height",
+		plain.handles > 0 && !plain.wrapClass && !plain.measured && plain.maxRow <= 49,
+		JSON.stringify(plain),
+	);
+
+	const noResize = await optIn("?rows=500&resize=0");
+	ok("resizable:false draws no resize handles", noResize.handles === 0, JSON.stringify(noResize));
+
+	const wrapped = await optIn("?rows=500&wrap=1");
+	ok(
+		"autoRowHeight wraps: class set, rows grow past Carbon's height, rows are measured",
+		wrapped.wrapClass && wrapped.maxRow > 49 && wrapped.measured && wrapped.rowsRendered < 100,
+		JSON.stringify(wrapped),
+	);
+	ok(
+		"autoRowHeight alone leaves the resize handles alone",
+		wrapped.handles > 0 && wrapped.handles === plain.handles,
+		`wrapped=${wrapped.handles} plain=${plain.handles}`,
+	);
+
+	// Measured rows are windowed like fixed ones: at every scroll position the rows
+	// drawn must be one unbroken run that covers the viewport, whatever heights the
+	// estimate was wrong about.
+	const windowAt = (frac: number) =>
+		page.eval<WindowState>(`new Promise(res => {
+      const s = document.querySelector('.cf-table__scroll');
+      s.scrollTop = (s.scrollHeight - s.clientHeight) * ${frac};
+      setTimeout(() => {
+        const rows = [...document.querySelectorAll('.cf-table__body .cf-table__row')];
+        const idx = rows.map(r => Number(r.dataset.index));
+        const sr = s.getBoundingClientRect();
+        const head = document.querySelector('.cf-table__head').getBoundingClientRect();
+        res({
+          scrollTop: Math.round(s.scrollTop), scrollHeight: s.scrollHeight, rendered: rows.length,
+          firstIndex: idx[0], lastIndex: idx[idx.length - 1],
+          contiguous: idx.every((n, i) => i === 0 || n === idx[i - 1] + 1),
+          gapAbove: Math.round(rows[0].getBoundingClientRect().top - (sr.top + head.height)),
+          gapBelow: Math.round(sr.bottom - rows[rows.length - 1].getBoundingClientRect().bottom),
+        });
+      }, 700);
+    })`);
+	const windows: WindowState[] = [];
+	for (const frac of [0, 0.3, 0.6, 1]) windows.push(await windowAt(frac));
+	// At the very top the first row sits a pixel or two below the sticky header's
+	// own border (the same on a page that does not wrap). A hole in the window would
+	// be a spacer's height, hundreds of px, so a few px of slack still catches it.
+	const EDGE = 6;
+	ok(
+		"measured window is contiguous, small and covers the viewport at every scroll position",
+		windows.every((w) => w.contiguous && w.rendered < 100 && w.gapAbove <= EDGE && w.gapBelow <= EDGE),
+		JSON.stringify(windows),
+	);
+	ok(
+		"measured window moves with the scroll",
+		windows.every((w, i) => i === 0 || w.firstIndex > (windows[i - 1]?.firstIndex ?? 0)),
+		windows.map((w) => w.firstIndex).join(" < "),
+	);
 
 	const errs = page.consoleErrors();
 	ok("no console errors", errs.length === 0, errs.join(" | "));

@@ -118,11 +118,18 @@ const columns: CarbonColumnSpec<DemoRow>[] = [
 	},
 ];
 
+const params = new URLSearchParams(location.search);
+
 const table = new CarbonTable<DemoRow>(document.getElementById("host"), {
 	columns,
-	data: makeData(Number(new URLSearchParams(location.search).get("rows") || 500)),
+	data: makeData(Number(params.get("rows") || 500)),
 	getRowId: (r) => r.name,
 	rowHeight: 48,
+	// The two opt-in behaviours (Carbon Settings > Tables), so the browser suite
+	// can load the engine either way: `?resize=0` takes the handles away,
+	// `?wrap=1` lets text wrap and rows grow.
+	resizable: params.get("resize") !== "0",
+	autoRowHeight: params.get("wrap") === "1",
 	inlineFilters: true,
 	selectable: true,
 	showTotalRow: true,

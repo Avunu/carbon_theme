@@ -1,21 +1,22 @@
 ---
 title: Work with tables
-description: Resize, sort and select in Carbon tables, open child-table rows in place, and copy and paste in the Report view.
+description: Sort, select and (when it is turned on) resize in Carbon tables, open child-table rows in place, and copy and paste in the Report view.
 nav_title: Tables
 order: 4
-updated: 2026-10-26
+updated: 2026-11-17
 ---
 
 Child tables in forms, the List view and the Report and Query views are all drawn by one Carbon data table. They behave as Frappe's tables did, with the same data, filters and permissions, and add a few things on top. This page shows how to use them.
 
-![The Sales Invoice Report view on the theme's table engine, with sortable, resizable Carbon column headers](screenshots/report-view-light.webp)
+![The Sales Invoice Report view on the theme's table engine, with sortable Carbon column headers](screenshots/report-view-light.webp)
 
 ## Columns
 
-- **Resize a column.** Drag the right edge of its header. In a child table and in the List view the new width is saved for you, as Frappe saves it: a child table's width is the same setting **Configure Columns** writes.
+- **Resize a column.** When a System Manager has ticked **Allow Column Resizing** in [Carbon Settings](configuration.md#table-options), drag the right edge of a header. Without it the headers have no handle. In a child table and in the List view the new width is saved for you, as Frappe saves it: a child table's width is the same setting **Configure Columns** writes.
 - **Sort.** In the Report and Query views, click a column header's sort button; the header shows the sort direction. In the List view, click a column's label, as in Frappe.
 - **Column menu.** In the Report and Query views, each header has a menu with **Sort Ascending**, **Sort Descending**, **Reset sorting**, **Remove column** and **Freeze** (or **Unfreeze**). The Report view also offers **Add Column** there.
 - **Child-table column widths.** A child table's columns share its width in proportion to each field's **Columns** property (1-12, set in the doctype or in Customize Form): a field with 4 is twice as wide as one with 2. A field without one is sized as Frappe's default width for its type would be on the same scale. The columns always fill the table, and follow it when the window or the sidebar changes width. A width you drag or type in **Configure Columns** is kept as it is, and the other columns share what is left; Double-click a column's resize handle to return that column to the ratio, or use **Reset to default** in Configure Columns to return every column.
+- **Long text.** A cell shows one line and ends it with an ellipsis. When a System Manager has ticked **Grow Rows to Fit Text** in [Carbon Settings](configuration.md#table-options), the text wraps instead and the row grows to show all of it.
 - **Wide tables.** A table with more columns than fit scrolls sideways. A child table scrolls when its columns would otherwise be narrower than Frappe's own width for them. A child table has no limit on the number of columns.
 
 ## Child tables
