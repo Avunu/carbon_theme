@@ -11,6 +11,9 @@
   "header_section",
   "header_bg",
   "header_text",
+  "tables_section",
+  "table_column_resize",
+  "table_auto_row_height",
   "reload_note"
  ],
  "fields": [
@@ -51,6 +54,26 @@
    "label": "Header Text"
   },
   {
+   "description": "Neither of these is part of Carbon's own data table design, so both are off until you turn them on. Each applies to child tables, the List view and Report views.",
+   "fieldname": "tables_section",
+   "fieldtype": "Section Break",
+   "label": "Tables"
+  },
+  {
+   "default": "0",
+   "description": "Draw a drag handle on the trailing edge of each table header, so a user can widen or narrow a column. Double-click the handle to put the column back.",
+   "fieldname": "table_column_resize",
+   "fieldtype": "Check",
+   "label": "Allow Column Resizing"
+  },
+  {
+   "default": "0",
+   "description": "Let a cell's text wrap, and the row grow to show all of it. Off, a cell shows one line and ends it with an ellipsis when the text is longer than the column.",
+   "fieldname": "table_auto_row_height",
+   "fieldtype": "Check",
+   "label": "Grow Rows to Fit Text"
+  },
+  {
    "fieldname": "reload_note",
    "fieldtype": "HTML",
    "options": "<p class=\"text-muted\">Reload the page for changes to take effect. On a localhost bench the header is always amber hazard stripes, so a development site can never be mistaken for production; set <code>carbon_dev_indicator</code> in site config to force it on or off.</p>"
@@ -59,7 +82,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-16 12:00:00.000000",
+ "modified": "2026-11-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Carbon Frappe",
  "name": "Carbon Settings",

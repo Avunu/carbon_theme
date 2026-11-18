@@ -16,6 +16,13 @@
 // expanded report tree node whose child rows the adapter renders itself. Mixed
 // heights under a fixed `estimateSize` produce a scrollbar that drifts out of
 // step with the content, which is worse than rendering every row.
+//
+// The exception is `autoRowHeight` (Carbon Settings > Grow Rows to Fit Text),
+// where non-uniform rows are the point and a report can still hold tens of
+// thousands of them. There the rows are MEASURED: each rendered <tr> is handed
+// to the virtualizer, which observes it and keeps what it finds, keyed by row id
+// (not index, so a sort does not hand one row another row's height). The
+// `rowHeight` is then only the estimate for a row that has not been on screen.
 import { Virtualizer, elementScroll, observeElementOffset, observeElementRect } from "@tanstack/virtual-core";
 import type { ScrollToOptions } from "@tanstack/virtual-core";
 
@@ -39,6 +46,8 @@ export type RowScrollToOptions = ScrollToOptions;
 export interface RowVirtualizerHost {
 	shouldVirtualize(count: number): boolean;
 	scheduleRender(): void;
+	/** The row model's id for the row at `index`; the key a measured height is kept under. */
+	rowKey(index: number): string | number;
 }
 
 /**
@@ -62,22 +71,29 @@ export default class RowVirtualizer {
 	virtualizer: Virtualizer<HTMLElement, Element> | null;
 	cleanup: (() => void) | null;
 	enabled: boolean;
-	// The three `sync()` arguments the last build was made from. Undefined until
-	// the first sync, null after a teardown; either way they can only compare
+	/** Rows are measured rather than assumed to be `rowHeight` (see the header note). */
+	measured: boolean;
+	// The `sync()` arguments the last build was made from. Undefined until the
+	// first sync, null after a teardown; either way they can only compare
 	// unequal to a real count/height/element, which is what the guard wants.
 	_count: number | null | undefined;
 	_rowHeight: number | null | undefined;
 	_scrollElement: HTMLElement | null | undefined;
+	_measured: boolean | null | undefined;
 
 	constructor(host: RowVirtualizerHost) {
 		this.host = host;
 		this.virtualizer = null;
 		this.cleanup = null;
 		this.enabled = false;
+		this.measured = false;
 	}
 
-	/** (Re)build the virtualizer for a row count. Idempotent per count/height. */
-	sync(count: number, rowHeight: number, scrollElement: HTMLElement): boolean {
+	/**
+	 * (Re)build the virtualizer for a row count. Idempotent per count/height.
+	 * `measured` asks for rows of differing heights (see the header note).
+	 */
+	sync(count: number, rowHeight: number, scrollElement: HTMLElement, measured = false): boolean {
 		const want = this.host.shouldVirtualize(count);
 		if (!want) {
 			this.teardown();
@@ -87,7 +103,8 @@ export default class RowVirtualizer {
 			this.virtualizer &&
 			this._count === count &&
 			this._rowHeight === rowHeight &&
-			this._scrollElement === scrollElement
+			this._scrollElement === scrollElement &&
+			this._measured === measured
 		) {
 			return true;
 		}
@@ -103,6 +120,9 @@ export default class RowVirtualizer {
 			// viewport, enough that a fast wheel scroll never shows a gap.
 			overscan: 12,
 			onChange: () => this.host.scheduleRender(),
+			// Measured heights are kept by key. The default key is the index,
+			// which after a sort or a filter is some other row's.
+			...(measured ? { getItemKey: (index: number) => this.host.rowKey(index) } : {}),
 		};
 
 		if (this.virtualizer) {
@@ -114,6 +134,8 @@ export default class RowVirtualizer {
 		this._count = count;
 		this._rowHeight = rowHeight;
 		this._scrollElement = scrollElement;
+		this._measured = measured;
+		this.measured = measured;
 		this.enabled = true;
 		this.virtualizer.measure();
 		return true;
@@ -124,7 +146,25 @@ export default class RowVirtualizer {
 		this.cleanup = null;
 		this.virtualizer = null;
 		this.enabled = false;
-		this._count = this._rowHeight = this._scrollElement = null;
+		this.measured = false;
+		this._count = this._rowHeight = this._scrollElement = this._measured = null;
+	}
+
+	/**
+	 * Hand the virtualizer a rendered row to measure and keep watching, so a
+	 * wrap that changes with the column width is picked up. A no-op unless this
+	 * build is a measured one. Call it once the row is in the document: a
+	 * detached node measures 0.
+	 */
+	measureRow(node: HTMLElement, index: number): void {
+		if (!this.enabled || !this.measured || !this.virtualizer) return;
+		node.setAttribute("data-index", String(index));
+		this.virtualizer.measureElement(node);
+	}
+
+	/** Forget the rows that left the document, so the observer does not hold them. */
+	pruneMeasured(): void {
+		if (this.enabled && this.measured && this.virtualizer) this.virtualizer.measureElement(null);
 	}
 
 	/**

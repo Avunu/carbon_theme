@@ -42,6 +42,7 @@ import Grid, {
 	LEGACY_COLSIZE_TO_PX,
 } from "frappe/public/js/frappe/form/grid";
 import CarbonTable, { isColumnResize } from "../engine/table.ts";
+import { tableOptionsFromFlags } from "../flags.ts";
 import { gridProfile } from "./classes.ts";
 import { columnFloor, columnWeight, ratioWidths } from "./ratio.ts";
 import { ensureChildRow } from "./expand.ts";
@@ -327,7 +328,7 @@ export default class CarbonGrid extends Grid {
 			rowHeight: 40,
 			profile: gridProfile(),
 			sortable: false, // row order is the child table's `idx`, dragged not sorted
-			resizable: true,
+			...tableOptionsFromFlags(),
 			// frappe persists a dragged width through `save_column_width`, which
 			// stock frappe's own handle calls on mouseup (grid.js:548-633). That
 			// handle is not running here (see `make_head`), so the engine's drag

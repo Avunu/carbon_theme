@@ -34,6 +34,10 @@ page_renderer = ["carbon_theme.brand.BrandStylesheet"]
 app_include_css = ["/carbon-brand.css"]
 web_include_css = ["/carbon-brand.css"]
 
+# Opt-in behaviours (Carbon Settings > Tables) reach the desk as
+# frappe.boot.carbon_features; see features.py.
+boot_session = "carbon_theme.features.boot_session"
+
 # carbon_charts: injects Carbon categorical colors into frappe.Chart and
 #   re-themes those charts on theme change.
 # carbon_desk: tags formatted numeric/date output with `carbon-num` so the

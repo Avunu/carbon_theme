@@ -28,6 +28,7 @@
 // arguments — see {@link CarbonDataTable.getTotalRow}.
 import CarbonTable from "../engine/table.ts";
 import { MAX_WIDTH, estimateWidth } from "../widths.ts";
+import { tableOptionsFromFlags } from "../flags.ts";
 import { nearestRowSize } from "../engine/classes.ts";
 import { datatableProfile, nextScopeClass } from "./classes.ts";
 import CellEditing from "./editing.ts";
@@ -789,7 +790,7 @@ export default class CarbonDataTable {
 			inlineFilters: this.options.inlineFilters,
 			showTotalRow: this.options.showTotalRow,
 			selectable: this.options.checkboxColumn,
-			resizable: true,
+			...tableOptionsFromFlags(),
 			emptyMessage: this.options.noDataMessage,
 			// Report views scroll INSIDE the table, as frappe-datatable did
 			// (`.dt-scrollable { height: 40vw }`). Without a bounded viewport a

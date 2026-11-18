@@ -23,6 +23,8 @@ class CarbonSettings(Document):
 		brand_light: DF.Color | None
 		header_bg: DF.Color | None
 		header_text: DF.Color | None
+		table_auto_row_height: DF.Check
+		table_column_resize: DF.Check
 	# end: auto-generated types
 
 	def validate(self):
