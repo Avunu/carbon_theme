@@ -176,17 +176,10 @@
   dependencies:
     "@ibm/telemetry-js" "^1.5.0"
 
-"@carbon/icons@11.92.0":
+"@carbon/icons@11.92.0", "@carbon/icons@^11.53.0", "@carbon/icons@^11.89.0":
   version "11.92.0"
   resolved "https://registry.yarnpkg.com/@carbon/icons/-/icons-11.92.0.tgz#c7c47b34eaaede6bb56807d1980b0febb8db1a1e"
   integrity sha512-Xtb4IH/huGjbk25Un6ugDuBC4CtbbNndUGZoc4qjv2cyPAy75VwKQ802gskur/R1+ZOs+aWFK+Vqve6LntIEfg==
-  dependencies:
-    "@ibm/telemetry-js" "^1.5.0"
-
-"@carbon/icons@^11.53.0", "@carbon/icons@^11.89.0":
-  version "11.91.0"
-  resolved "https://registry.yarnpkg.com/@carbon/icons/-/icons-11.91.0.tgz#a15f5cfd95e8c819a6f9bef489051dc78bda4175"
-  integrity sha512-XMFcuwdUHrrI+GK3ZB8TjueZoe2hD6ThCfMKT4ZO64aEvEYgqtpkQ+FvLs1KCWDysQbsMEnKdrheBx54vHTY4w==
   dependencies:
     "@ibm/telemetry-js" "^1.5.0"
 
