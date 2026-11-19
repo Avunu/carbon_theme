@@ -334,11 +334,11 @@
     "hrms": {
       "flake": false,
       "locked": {
-        "lastModified": 1794954427,
-        "narHash": "sha256-hO41ImzCODX4Gndrn2hM7BIed/C3J9FJQhU4W1j8YAA=",
+        "lastModified": 1793773454,
+        "narHash": "sha256-e7FJUY+KVF+al96grxy02JZT9bma4XLks/XVy6/HBdA=",
         "owner": "frappe",
         "repo": "hrms",
-        "rev": "1b2d7e034e0de8e30a9e513541d7741710587ad5",
+        "rev": "3b7f8f2854a06fb9eb4d2785e20ddaf8ad750980",
         "type": "github"
       },
       "original": {
