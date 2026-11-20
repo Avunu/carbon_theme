@@ -43,7 +43,7 @@ Full documentation: [docs.avunu.net/carbon-theme/docs/](https://docs.avunu.net/c
 - **Dev indicator:** on `localhost` and `*.localhost` sites the header is yellow with hazard stripes, so a development tab is not mistaken for production.
 - **Carbon charts:** `frappe.Chart` gets Carbon's 14-colour categorical palettes when the caller passes no colours, and charts re-theme when the desk theme changes.
 - **IBM Plex** fonts, self-hosted, with IBM Plex Mono for numbers and dates in tables.
-- **AI assistant panel:** when the [flow](https://github.com/frappe/flow_client) app is installed, the header gets a Carbon AI Chat panel that replaces flow's own, with conversation history, feedback and file attachments.
+- **AI assistant panel:** with Frappe's built-in Flow (Frappe 16.60 and later), the header gets a Carbon AI Chat panel that replaces Flow's own, with conversation history, feedback and file attachments.
 - **Drift audits** (`yarn audit:drift`) that fail when a Carbon token, a Frappe selector or the asset shadow the theme depends on has changed, because those breakages are otherwise silent.
 
 <!-- frappe-nix:begin compatibility -->
@@ -99,7 +99,7 @@ The theme works without configuration. Two things can be set:
 - **Some tables are not replaced:** the Data Import preview and the System Console keep the stock frappe-datatable (still themed), and `frappe.ui.EmbeddedList` keeps its plain table.
 - **Older frappe-ui apps are themed on a best-effort basis.** Apps on frappe-ui v0 (and flow's `beta.3`) use older token names, some of which cannot be mapped exactly; CRM's `1.0.0-beta.29` can show some coloured text one shade off.
 - **E-mail** is inlined by Premailer, which supports no CSS variables, so e-mail gets Carbon's default colours, not the brand colours. On website pages, Bootstrap utilities such as `.text-primary` also keep the Website Theme's colour.
-- **The AI assistant** needs the flow app. It does not tell the model which document is open, and files a user attaches stay on the site as private files until flow's 30-day purge.
+- **The AI assistant** needs Frappe's built-in Flow (Frappe 16.60 and later). It does not tell the model which document is open, and files a user attaches stay on the site as private files until Flow's 30-day purge.
 
 [docs/troubleshooting.md](docs/troubleshooting.md) lists the messages the theme shows and how to fix what undoes it.
 

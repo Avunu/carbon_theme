@@ -31,17 +31,13 @@ import {
 } from "../../../carbon_theme/public/js/ai_chat/flow/client.ts";
 import { createFlowClient } from "../../../carbon_theme/public/js/ai_chat/controller.ts";
 import type { FlowEvent } from "../../../carbon_theme/public/js/ai_chat/flow/events.ts";
+import type { FlowSocket } from "../../../carbon_theme/public/js/ai_chat/flow/stream.ts";
 import {
-	ANSWERS_APPROVE_ALL,
-	ANSWERS_REDIRECT,
 	HTTP_ERROR_FORBIDDEN,
 	HTTP_ERROR_PAUSED,
-	RESUME_APPROVED,
 	RUN,
 	SESSION,
 	SESSION_COMPLETED,
-	TEXT_TOOL_TEXT,
-	bodyFrom,
 	type TestBody,
 } from "./fixtures.ts";
 
@@ -95,17 +91,10 @@ function harness(
 			},
 			csrfToken: () => "tok",
 			translate,
+			socket: () => null,
 		},
 	};
 	return state;
-}
-
-function sse(chunks: readonly string[], options: { hold?: boolean } = {}): (h: Harness) => Response {
-	return (h) => {
-		const body = bodyFrom(chunks, options);
-		h.bodies.push(body);
-		return new Response(body.stream, { status: 200, headers: { "Content-Type": "text/event-stream" } });
-	};
 }
 
 async function collect(stream: AsyncIterable<FlowEvent>): Promise<FlowEvent[]> {
@@ -125,201 +114,241 @@ function isAbortError(error: unknown): boolean {
 	return error instanceof Error && error.name === "AbortError";
 }
 
+/** A socket.io client double: records emits, acks `flow:subscribe` with `ack`, and delivers events on demand. */
+class FakeSocket implements FlowSocket {
+	readonly listeners = new Map<string, Set<(payload: unknown) => void>>();
+	readonly emitted: unknown[][] = [];
+	ack: unknown = { subscribed: true };
+
+	on(name: string, listener: (payload: unknown) => void): void {
+		const set = this.listeners.get(name) ?? new Set();
+		set.add(listener);
+		this.listeners.set(name, set);
+	}
+
+	off(name: string, listener: (payload: unknown) => void): void {
+		this.listeners.get(name)?.delete(listener);
+	}
+
+	emit(name: string, ...args: unknown[]): void {
+		this.emitted.push([name, ...args]);
+		const callback = args[1];
+		if (name === "flow:subscribe" && typeof callback === "function") {
+			const ack = this.ack;
+			queueMicrotask(() => callback(ack));
+		}
+	}
+
+	deliver(name: string, payload: unknown): void {
+		for (const listener of Array.from(this.listeners.get(name) ?? [])) listener(payload);
+	}
+
+	count(name: string): number {
+		return this.listeners.get(name)?.size ?? 0;
+	}
+}
+
+interface StreamHarness {
+	env: FlowEnv;
+	socket: FakeSocket;
+	calls: CallRecord[];
+	/** What each method answers; `run` and `resume` also play `events` over the socket. */
+	replies: Record<string, unknown>;
+	events: Record<string, unknown>[];
+}
+
+function streamHarness(options: { socket?: FakeSocket | null; latest?: number } = {}): StreamHarness {
+	const socket = options.socket === undefined ? new FakeSocket() : options.socket;
+	const state: StreamHarness = {
+		socket: socket ?? new FakeSocket(),
+		calls: [],
+		events: [],
+		replies: {
+			"frappe.flow.api.create_session": { name: SESSION },
+			"frappe.flow.api.entries": { entries: [], preview: [], latest_seq: options.latest ?? 4 },
+			"frappe.flow.api.run": { run: "FR-0001", status: "started" },
+			"frappe.flow.api.resume": { run: "FR-0001", status: "started" },
+		},
+		env: {
+			fetch: () => Promise.reject(new Error("unexpected fetch")),
+			call: async (method, args) => {
+				state.calls.push({ method, args });
+				if (method === "frappe.flow.api.run" || method === "frappe.flow.api.resume") {
+					const events = state.events;
+					const session = args?.["session"];
+					setTimeout(() => {
+						for (const event of events) state.socket.deliver("flow:event", { session_id: session, ...event });
+					}, 0);
+				}
+				return state.replies[method];
+			},
+			csrfToken: () => "tok",
+			translate: identity,
+			socket: () => socket,
+		},
+	};
+	return state;
+}
+
+const methods = (h: StreamHarness): string[] => h.calls.map((call) => call.method);
+
 describe("startRun", () => {
-	it("does nothing until the first next(), then POSTs once with the two headers", async () => {
-		const h = harness(sse([TEXT_TOOL_TEXT.wire]));
-		const stream = startRun({ input: "hi" }, undefined, h.env);
-		await Promise.resolve();
-		assert.equal(h.fetches.length, 0);
-
-		const events = await collect(stream);
-		assert.equal(h.fetches.length, 1);
-		const [record] = h.fetches;
-		assert.equal(record?.url, "/api/method/flow.api.start_run");
-		assert.equal(record?.init.method, "POST");
-		const headers = new Headers(record?.init.headers);
-		assert.equal(headers.get("Content-Type"), "application/json");
-		assert.equal(headers.get("X-Frappe-CSRF-Token"), "tok");
-		assert.deepEqual(events, TEXT_TOOL_TEXT.events);
+	it("creates the session, joins its room before the turn starts, and yields the run as FlowEvents", async () => {
+		const h = streamHarness();
+		h.events = [
+			{ type: "run_started", run_id: "abc", seq: 5 },
+			{ type: "text_delta", text: "Hel", revision: 1 },
+			{ type: "text_delta", text: "lo", revision: 2 },
+			{ type: "assistant_message", content: [{ type: "text", text: "Hello" }], seq: 6 },
+			{ type: "run_ended", reason: "done", seq: 7 },
+		];
+		const events = await collect(
+			startRun({ input: "hi", agent: "Assistant", model: "gpt" }, undefined, h.env),
+		);
+		assert.deepEqual(events, [
+			{ type: "run_started", name: "FR-0001", session: SESSION },
+			{ type: "text", delta: "Hel" },
+			{ type: "text", delta: "lo" },
+			{ type: "done", status: "Completed", iterations: 0, output: "Hello", usage: {}, questions: [] },
+		]);
+		// the cursor, the turn, then the catch-up from the cursor (events meanwhile queue on the room)
+		assert.deepEqual(methods(h), [
+			"frappe.flow.api.create_session",
+			"frappe.flow.api.entries",
+			"frappe.flow.api.run",
+			"frappe.flow.api.entries",
+		]);
+		assert.deepEqual(h.calls[0]?.args, { agent: "Assistant", model: "gpt" });
+		assert.deepEqual(h.calls[2]?.args, { session: SESSION, message: "hi" });
+		// joined, then left once the run ended
+		assert.deepEqual(h.socket.emitted[0]?.slice(0, 2), ["flow:subscribe", SESSION]);
+		assert.deepEqual(h.socket.emitted.at(-1), ["flow:unsubscribe", SESSION]);
+		assert.equal(h.socket.count("flow:event"), 0);
 	});
 
-	it("sends exactly {input, stream: true} for a bare call", async () => {
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi" }, undefined, h.env));
-		assert.deepEqual(sentBody(h.fetches[0]), { input: "hi", stream: true });
+	it("starts from the session's latest seq, so earlier turns are not replayed", async () => {
+		const h = streamHarness({ latest: 9 });
+		h.events = [
+			{ type: "run_ended", reason: "done", seq: 3 },
+			{ type: "run_ended", reason: "done", seq: 10 },
+		];
+		const events = await collect(startRun({ input: "x", session: SESSION }, undefined, h.env));
+		assert.equal(events.length, 2);
+		const entries = h.calls.filter((call) => call.method === "frappe.flow.api.entries");
+		assert.deepEqual(entries[0]?.args, { session: SESSION, since: 2 ** 31 - 1, path: "all" });
+		assert.deepEqual(entries[1]?.args, { session: SESSION, since: 9, path: "all" });
 	});
 
-	it("includes session and omits agent when both are given", async () => {
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi", session: SESSION, agent: "Flow" }, undefined, h.env));
-		assert.deepEqual(sentBody(h.fetches[0]), { input: "hi", stream: true, session: SESSION });
+	it("switches an existing session's model once, and sends attachments only when there are some", async () => {
+		const h = streamHarness();
+		h.events = [{ type: "run_ended", reason: "done", seq: 5 }];
+		await collect(startRun({ input: "a", session: "S-MODEL", model: "m1" }, undefined, h.env));
+		h.events = [{ type: "run_ended", reason: "done", seq: 5 }];
+		await collect(
+			startRun({ input: "b", session: "S-MODEL", model: "m1", attachments: ["F1"] }, undefined, h.env),
+		);
+		assert.equal(methods(h).filter((m) => m === "frappe.flow.api.set_model").length, 1);
+		assert.ok(!methods(h).includes("frappe.flow.api.create_session"));
+		const runs = h.calls.filter((call) => call.method === "frappe.flow.api.run");
+		assert.deepEqual(runs[0]?.args, { session: "S-MODEL", message: "a" });
+		assert.deepEqual(runs[1]?.args, { session: "S-MODEL", message: "b", attachments: ["F1"] });
 	});
 
-	it("includes agent when there is no session", async () => {
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi", agent: "Flow" }, undefined, h.env));
-		assert.deepEqual(sentBody(h.fetches[0]), { input: "hi", stream: true, agent: "Flow" });
+	it("throws a FlowHttpError 403 and never starts the turn when the relay refuses the room", async () => {
+		const socket = new FakeSocket();
+		socket.ack = { subscribed: false };
+		const h = streamHarness({ socket });
+		await assert.rejects(
+			collect(startRun({ input: "x", session: SESSION }, undefined, h.env)),
+			(error: unknown) => error instanceof FlowHttpError && error.status === 403,
+		);
+		assert.ok(!methods(h).includes("frappe.flow.api.run"));
 	});
 
-	it("includes model, and attachments only when non-empty", async () => {
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi", model: "gpt", attachments: ["a.pdf", "b.png"] }, undefined, h.env));
-		assert.deepEqual(sentBody(h.fetches[0]), {
-			input: "hi",
-			stream: true,
-			model: "gpt",
-			attachments: ["a.pdf", "b.png"],
-		});
-
-		await collect(startRun({ input: "hi", attachments: [] }, undefined, h.env));
-		assert.deepEqual(Object.keys(sentBody(h.fetches[1])).sort(), ["input", "stream"]);
+	it("throws a FlowHttpError 503 when the desk has no socket", async () => {
+		const h = streamHarness({ socket: null });
+		await assert.rejects(
+			collect(startRun({ input: "x", session: SESSION }, undefined, h.env)),
+			(error: unknown) => error instanceof FlowHttpError && error.status === 503,
+		);
 	});
 
-	it("never sends a key whose value is undefined", async () => {
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi" }, undefined, h.env));
-		const raw = String(h.fetches[0]?.init.body);
-		assert.equal(raw.includes("null"), false);
-		assert.deepEqual(Object.keys(sentBody(h.fetches[0])), ["input", "stream"]);
+	it("ends quietly and leaves the room when the signal aborts mid-run", async () => {
+		const h = streamHarness();
+		h.events = [{ type: "text_delta", text: "partial", revision: 1 }];
+		const controller = new AbortController();
+		const seen: FlowEvent[] = [];
+		for await (const event of startRun({ input: "x", session: SESSION }, controller.signal, h.env)) {
+			seen.push(event);
+			if (event.type === "text") controller.abort();
+		}
+		assert.deepEqual(
+			seen.map((event) => event.type),
+			["run_started", "text"],
+		);
+		assert.equal(h.socket.count("flow:event"), 0);
+	});
+
+	it("rejects with the abort reason without calling anything when already aborted", async () => {
+		const h = streamHarness();
+		const controller = new AbortController();
+		controller.abort();
+		await assert.rejects(collect(startRun({ input: "x", session: SESSION }, controller.signal, h.env)));
+		assert.deepEqual(methods(h), []);
 	});
 });
 
 describe("resumeRun", () => {
-	it("POSTs {run_name, answers, stream: true} to resume_run and yields the resume events", async () => {
-		const h = harness(sse([RESUME_APPROVED.wire]));
-		const events = await collect(resumeRun(RUN, ANSWERS_APPROVE_ALL, undefined, h.env));
-		assert.equal(h.fetches[0]?.url, "/api/method/flow.api.resume_run");
-		assert.equal(h.fetches[0]?.init.method, "POST");
-		assert.equal(new Headers(h.fetches[0]?.init.headers).get("X-Frappe-CSRF-Token"), "tok");
-		assert.deepEqual(sentBody(h.fetches[0]), { run_name: RUN, answers: ANSWERS_APPROVE_ALL, stream: true });
-		assert.deepEqual(events, RESUME_APPROVED.events);
+	it("sends {session, answers} to resume and yields the resumed run", async () => {
+		const h = streamHarness();
+		h.events = [
+			{ type: "tool_result", tool_call_id: "call_1", name: "create", content: "ok", seq: 5 },
+			{ type: "run_ended", reason: "done", seq: 6 },
+		];
+		const events = await collect(resumeRun(SESSION, { call_1: "Approve" }, undefined, h.env));
+		assert.deepEqual(h.calls.find((call) => call.method === "frappe.flow.api.resume")?.args, {
+			session: SESSION,
+			answers: { call_1: "Approve" },
+		});
+		assert.deepEqual(events.slice(0, 2), [
+			{ type: "run_started", name: "FR-0001", session: SESSION },
+			{ type: "tool_ended", id: "call_1", name: "create", result: "ok" },
+		]);
 	});
 
-	it("sends a free-text redirect answer verbatim", async () => {
-		const h = harness(sse([]));
-		await collect(resumeRun(RUN, ANSWERS_REDIRECT, undefined, h.env));
-		assert.deepEqual(sentBody(h.fetches[0])["answers"], ANSWERS_REDIRECT);
+	it("pauses with one Approve/Deny question per waiting call", async () => {
+		const h = streamHarness();
+		h.events = [
+			{
+				type: "approval_required",
+				calls: [{ id: "call_2", name: "delete", args: {}, prompt: "Delete it?" }],
+				seq: 5,
+			},
+			{ type: "run_ended", reason: "paused", seq: 6 },
+		];
+		const events = await collect(resumeRun(SESSION, { call_1: "Approve" }, undefined, h.env));
+		assert.deepEqual(events.slice(1), [
+			{ type: "tool_ended", id: "call_2", name: "delete", result: "" },
+			{
+				type: "done",
+				status: "Paused",
+				iterations: 0,
+				output: null,
+				usage: {},
+				questions: [
+					{
+						prompt: "Delete it?",
+						options: ["Approve", "Deny"],
+						multi_select: false,
+						allow_other: true,
+						key: "call_2",
+					},
+				],
+			},
+		]);
 	});
 });
 
-describe("stream failures", () => {
-	it("throws a FlowHttpError with the _server_messages text on a 417", async () => {
-		const h = harness(
-			() =>
-				new Response(JSON.stringify(HTTP_ERROR_PAUSED.body), {
-					status: HTTP_ERROR_PAUSED.status,
-					headers: { "Content-Type": "application/json" },
-				}),
-		);
-		await assert.rejects(collect(startRun({ input: "hi" }, undefined, h.env)), (error: unknown) => {
-			assert.ok(error instanceof FlowHttpError);
-			assert.equal(error.name, "FlowHttpError");
-			assert.equal(error.status, 417);
-			assert.equal(error.message, HTTP_ERROR_PAUSED.message);
-			return true;
-		});
-	});
-
-	it("reads _error_message for a 403", async () => {
-		const h = harness(
-			() => new Response(JSON.stringify(HTTP_ERROR_FORBIDDEN.body), { status: HTTP_ERROR_FORBIDDEN.status }),
-		);
-		await assert.rejects(collect(resumeRun(RUN, {}, undefined, h.env)), (error: unknown) => {
-			assert.ok(error instanceof FlowHttpError);
-			assert.equal(error.status, 403);
-			assert.equal(error.message, HTTP_ERROR_FORBIDDEN.message);
-			return true;
-		});
-	});
-
-	it("falls back to the translated 'Request failed (status)' for a non-JSON body", async () => {
-		const h = harness(() => new Response("<html>Bad Gateway</html>", { status: 502 }), upperCase);
-		await assert.rejects(collect(startRun({ input: "hi" }, undefined, h.env)), (error: unknown) => {
-			assert.ok(error instanceof FlowHttpError);
-			assert.equal(error.status, 502);
-			assert.equal(error.message, "REQUEST FAILED (502)");
-			return true;
-		});
-	});
-
-	it("falls back when a JSON error body carries no readable message", async () => {
-		const h = harness(() => new Response("{}", { status: 500 }));
-		await assert.rejects(
-			collect(startRun({ input: "hi" }, undefined, h.env)),
-			(error: unknown) => error instanceof FlowHttpError && error.message === "Request failed (500)",
-		);
-	});
-
-	it("throws the same fallback for a 200 with no body", async () => {
-		const h = harness(() => new Response(null, { status: 200 }), upperCase);
-		await assert.rejects(collect(startRun({ input: "hi" }, undefined, h.env)), (error: unknown) => {
-			assert.ok(error instanceof FlowHttpError);
-			assert.equal(error.status, 200);
-			assert.equal(error.message, "REQUEST FAILED (200)");
-			return true;
-		});
-	});
-
-	it("propagates a fetch rejection unchanged", async () => {
-		const boom = new TypeError("Failed to fetch");
-		const h = harness(() => Promise.reject(boom));
-		await assert.rejects(
-			collect(startRun({ input: "hi" }, undefined, h.env)),
-			(error: unknown) => error === boom,
-		);
-	});
-});
-
-describe("abort propagation", () => {
-	it("passes the signal to fetch, and omits the key without one", async () => {
-		const controller = new AbortController();
-		const h = harness(sse([]));
-		await collect(startRun({ input: "hi" }, controller.signal, h.env));
-		assert.equal(h.fetches[0]?.init.signal, controller.signal);
-
-		await collect(startRun({ input: "hi" }, undefined, h.env));
-		assert.equal("signal" in (h.fetches[1]?.init ?? {}), false);
-	});
-
-	it("rejects with the abort reason without calling fetch when already aborted", async () => {
-		const h = harness(sse([]));
-		await assert.rejects(collect(startRun({ input: "hi" }, AbortSignal.abort(), h.env)), isAbortError);
-		await assert.rejects(collect(resumeRun(RUN, {}, AbortSignal.abort(), h.env)), isAbortError);
-		assert.equal(h.fetches.length, 0);
-	});
-
-	it("rejects with a custom abort reason as given", async () => {
-		const reason = new Error("navigated away");
-		const h = harness(sse([]));
-		await assert.rejects(
-			collect(startRun({ input: "hi" }, AbortSignal.abort(reason), h.env)),
-			(error: unknown) => error === reason,
-		);
-	});
-
-	it("aborts mid-stream: the next read rejects with AbortError and the body is cancelled", async () => {
-		const controller = new AbortController();
-		const h = harness(sse([TEXT_TOOL_TEXT.wire], { hold: true }));
-		const stream = startRun({ input: "hi" }, controller.signal, h.env);
-
-		const first = await stream.next();
-		assert.deepEqual(first.value, TEXT_TOOL_TEXT.events[0]);
-		// Queued next() calls resolve in order, so this drains the rest without awaiting in a loop.
-		await Promise.all(TEXT_TOOL_TEXT.events.slice(1).map(() => stream.next()));
-		const pending = stream.next();
-		controller.abort();
-		await assert.rejects(pending, isAbortError);
-		assert.equal(h.bodies[0]?.cancelled(), true);
-	});
-
-	it("cancels the body when the consumer stops early", async () => {
-		const h = harness(sse([TEXT_TOOL_TEXT.wire], { hold: true }));
-		for await (const _event of startRun({ input: "hi" }, undefined, h.env)) break;
-		assert.equal(h.bodies[0]?.cancelled(), true);
-	});
-});
-
-/** The `_server_messages` of a `frappe.throw` with these texts. */
 function serverMessages(...texts: string[]): Record<string, unknown> {
 	return { _server_messages: JSON.stringify(texts.map((message) => JSON.stringify({ message }))) };
 }
@@ -411,26 +440,29 @@ describe("serverMessage", () => {
 });
 
 describe("plain calls", () => {
-	it("stopRun", async () => {
+	it("stopRun aborts the session's turn", async () => {
 		const h = harness();
-		h.reply.value = { status: "Failed" };
-		assert.equal(await stopRun(RUN, h.env), undefined);
-		assert.deepEqual(h.calls, [{ method: "flow.api.stop_run", args: { run_name: RUN } }]);
+		h.reply.value = { status: "aborting" };
+		assert.equal(await stopRun(SESSION, h.env), undefined);
+		assert.deepEqual(h.calls, [{ method: "frappe.flow.api.abort", args: { session: SESSION } }]);
 	});
 
-	it("recoverSession returns the recovered count, 0 for anything else", async () => {
+	it("recoverSession aborts, syncs the session, and says whether a turn was running", async () => {
 		const h = harness();
-		h.reply.value = { recovered: 3 };
-		assert.equal(await recoverSession(SESSION, h.env), 3);
-		assert.deepEqual(h.calls[0], { method: "flow.api.recover_session", args: { session: SESSION } });
+		h.reply.value = { status: "aborting" };
+		assert.equal(await recoverSession(SESSION, h.env), 1);
+		assert.deepEqual(h.calls, [
+			{ method: "frappe.flow.api.abort", args: { session: SESSION } },
+			{ method: "frappe.flow.api.session", args: { session: SESSION } },
+		]);
 		const counts = await Promise.all(
-			[null, undefined, "3", 3, [], {}, { recovered: "3" }].map((reply) => {
+			[null, undefined, "aborting", {}, { status: "idle" }].map((reply) => {
 				const other = harness();
 				other.reply.value = reply;
 				return recoverSession(SESSION, other.env);
 			}),
 		);
-		assert.deepEqual(counts, [0, 0, 0, 0, 0, 0, 0]);
+		assert.deepEqual(counts, [0, 0, 0, 0, 0]);
 	});
 
 	it("submitFeedback sends comment null for empty or missing, and passes None through", async () => {
@@ -440,11 +472,11 @@ describe("plain calls", () => {
 		await submitFeedback(RUN, "None", undefined, h.env);
 		assert.deepEqual(h.calls, [
 			{
-				method: "flow.api.submit_feedback",
+				method: "frappe.flow.api.submit_feedback",
 				args: { run_name: RUN, rating: "Down", comment: "Too curt" },
 			},
-			{ method: "flow.api.submit_feedback", args: { run_name: RUN, rating: "Up", comment: null } },
-			{ method: "flow.api.submit_feedback", args: { run_name: RUN, rating: "None", comment: null } },
+			{ method: "frappe.flow.api.submit_feedback", args: { run_name: RUN, rating: "Up", comment: null } },
+			{ method: "frappe.flow.api.submit_feedback", args: { run_name: RUN, rating: "None", comment: null } },
 		]);
 	});
 
@@ -452,7 +484,7 @@ describe("plain calls", () => {
 		const boom = new Error("denied");
 		const h = harness();
 		h.env.call = () => Promise.reject(boom);
-		await assert.rejects(stopRun(RUN, h.env), (error: unknown) => error === boom);
+		await assert.rejects(stopRun(SESSION, h.env), (error: unknown) => error === boom);
 		await assert.rejects(deleteSession("x", h.env), (error: unknown) => error === boom);
 		await assert.rejects(listRuns(SESSION, h.env), (error: unknown) => error === boom);
 	});
@@ -515,7 +547,7 @@ describe("listModels", () => {
 				method: "frappe.client.get_list",
 				args: {
 					doctype: "Flow Model",
-					filters: { enabled: 1 },
+					filters: { enabled: 1, embedding: 0 },
 					fields: ["name", "title"],
 					order_by: "title asc",
 					limit_page_length: 50,
@@ -544,11 +576,12 @@ describe("listModels", () => {
 });
 
 describe("session and run reads", () => {
-	it("getSession sends frappe.client.get and returns the parsed doc", async () => {
+	it("getSession syncs the session, then sends frappe.client.get and returns the parsed doc", async () => {
 		const h = harness();
 		h.reply.value = SESSION_COMPLETED.session;
 		const doc = await getSession(SESSION, h.env);
 		assert.deepEqual(h.calls, [
+			{ method: "frappe.flow.api.session", args: { session: SESSION } },
 			{ method: "frappe.client.get", args: { doctype: "Flow Session", name: SESSION } },
 		]);
 		// The parser keeps only string-valued fields, so the fixture's `model: null` is dropped.
@@ -611,14 +644,11 @@ describe("session and run reads", () => {
 });
 
 describe("renameSession and deleteSession", () => {
-	it("renameSession trims and sends set_value", async () => {
+	it("renameSession trims and sends set_title", async () => {
 		const h = harness();
 		assert.equal(await renameSession(SESSION, "  Quarterly plan \n", h.env), undefined);
 		assert.deepEqual(h.calls, [
-			{
-				method: "frappe.client.set_value",
-				args: { doctype: "Flow Session", name: SESSION, fieldname: "title", value: "Quarterly plan" },
-			},
+			{ method: "frappe.flow.api.set_title", args: { session: SESSION, title: "Quarterly plan" } },
 		]);
 	});
 
@@ -635,12 +665,10 @@ describe("renameSession and deleteSession", () => {
 		assert.equal(h.calls.length, 0);
 	});
 
-	it("deleteSession sends frappe.client.delete", async () => {
+	it("deleteSession sends delete_session", async () => {
 		const h = harness();
 		assert.equal(await deleteSession(SESSION, h.env), undefined);
-		assert.deepEqual(h.calls, [
-			{ method: "frappe.client.delete", args: { doctype: "Flow Session", name: SESSION } },
-		]);
+		assert.deepEqual(h.calls, [{ method: "frappe.flow.api.delete_session", args: { session: SESSION } }]);
 	});
 });
 
@@ -1244,7 +1272,7 @@ describe("attachFile", () => {
 		const h = harness(ok({ file: "49ec5dd196", file_name: "CF AI Test notes.txt", file_size: 16 }));
 		const attached = await attachFile("49ec5dd196", undefined, h.env);
 		assert.deepEqual(attached, { file: "49ec5dd196", fileName: "CF AI Test notes.txt", fileSize: 16 });
-		assert.equal(h.fetches[0]?.url, "/api/method/flow.api.attach_file");
+		assert.equal(h.fetches[0]?.url, "/api/method/frappe.flow.api.attach_file");
 		assert.equal(new Headers(h.fetches[0]?.init.headers).get("X-Frappe-CSRF-Token"), "tok");
 		assert.deepEqual(sentBody(h.fetches[0]), { file: "49ec5dd196" });
 	});
@@ -1382,7 +1410,7 @@ describe("createFlowClient", () => {
 		assert.equal(u.posts.length, 1);
 
 		assert.deepEqual(await client.attachFile("f1"), { file: "f1", fileName: "a.txt", fileSize: 1 });
-		assert.equal(h.fetches[0]?.url, "/api/method/flow.api.attach_file");
+		assert.equal(h.fetches[0]?.url, "/api/method/frappe.flow.api.attach_file");
 
 		await client.deleteFile("f1");
 		assert.deepEqual(h.calls.at(-1), {
