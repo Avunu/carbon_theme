@@ -4,7 +4,8 @@
 // inside the chat itself is in that sheet.
 //
 // The host is on <body>, outside the header's g100 zone, so it follows the page theme.
-// It overlays the page: .main-section is never pushed or resized.
+// Docked beside the page, it pushes the page over: .main-section gives up the panel's
+// width, so nothing on the page is covered (see "Pushing the page" below).
 //
 // An expanded panel (or any panel in a narrow window) covers the page; assistant.ts
 // makes the page inert then, so Tab cannot land on what is hidden.
@@ -117,6 +118,32 @@ body.cf-ai-chat flow-launcher {
 }
 
 // -- toasts --------------------------------------------------------------------
+// -- Pushing the page ---------------------------------------------------------
+// While the panel is open beside the page, the page's column ends where the panel
+// starts. The room is taken from .main-section, body's last flex child, and not from
+// <html> or <body>: desk/mobile.scss forbids margin and padding on those, because the
+// desk measures its columns against the viewport (see body.cf-has-shell in
+// desk/_ui-shell.scss). The dock and the sidebar keep their place; the fixed header
+// keeps the full width, as the panel sits under it. The margin slides with the panel.
+// An expanded panel, or any panel in a narrow window, still covers the page.
+body.cf-has-shell > .main-section {
+	transition: margin-inline-end var(--carbon-duration-moderate-02, 240ms)
+		var(--carbon-easing-exit, cubic-bezier(0.2, 0, 1, 0.9));
+}
+
+@media (width > #{$ai-narrow}) {
+	body.cf-has-shell.cf-ai-open:not(.cf-ai-expanded) > .main-section {
+		margin-inline-end: $ai-width;
+		transition-timing-function: var(--carbon-easing-entrance, cubic-bezier(0, 0, 0.3, 1));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	body.cf-has-shell > .main-section {
+		transition: none;
+	}
+}
+
 // Frappe's toasts (`.es-toast-container`: bottom 12px, inline-end 20px, 2000;
 // espresso toast.css) would sit on the prompt line and its send or stop button.
 // Beside the strip the stack moves inline-start of it; over a full-width panel it goes
