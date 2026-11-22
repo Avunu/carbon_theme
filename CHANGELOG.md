@@ -1,5 +1,14 @@
 # Changelog
 
+## [16.4.0](https://github.com/Avunu/carbon_theme/compare/v16.3.2...v16.4.0) (2026-11-21)
+
+
+### Features
+
+* **ai_chat:** add model picker to flow chat ([#166](https://github.com/Avunu/carbon_theme/issues/166)) ([4d0e684](https://github.com/Avunu/carbon_theme/commit/4d0e684be04a95f3e66c221c3530b9ad5b24b13b))
+* show the app's logo in the About dialog, on frappe-nix 2.4.0 ([#151](https://github.com/Avunu/carbon_theme/issues/151)) ([63fe8b4](https://github.com/Avunu/carbon_theme/commit/63fe8b431bf75274a81b28ab86102877cc6c6269))
+* **tables:** make column resizing and row growth opt-in Carbon Settings flags ([#173](https://github.com/Avunu/carbon_theme/issues/173)) ([3584679](https://github.com/Avunu/carbon_theme/commit/3584679e1bc79041a074f824a28daeb09c83b70f))
+
 ## [16.3.2](https://github.com/Avunu/carbon_theme/compare/v16.3.1...v16.3.2) (2026-11-03)
 
 
