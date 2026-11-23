@@ -875,6 +875,13 @@
   dependencies:
     "@ibm/telemetry-js" "^1.6.1"
 
+"@ibm/plex-sans@2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@ibm/plex-sans/-/plex-sans-2.0.0.tgz#ebf105b7fb4bbf3381ba6bfd884966e8ee19934b"
+  integrity sha512-iGvuyYd1nBw5ojlspC+uMKvQNd1rlbPR4LX9bzn6KsnXULPemANYmHyZPlrDGDBWaJb84crU/A4rNoH5dl3/Wg==
+  dependencies:
+    "@ibm/telemetry-js" "^1.6.1"
+
 "@ibm/plex-serif@2.0.0":
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/@ibm/plex-serif/-/plex-serif-2.0.0.tgz#536fed68f481dea2435653e7c2a743f5a2249bdd"
