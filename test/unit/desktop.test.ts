@@ -4,8 +4,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import "./globals.ts";
-import { buildAppsTree, buildDesktopTree } from "../../carbon_theme/public/js/anatomy/shell/desktop.ts";
-import type { IconRoute } from "../../carbon_theme/public/js/anatomy/shell/desktop.ts";
+import {
+	buildAppsTree,
+	buildDesktopTree,
+	studioAppsOf,
+} from "../../carbon_theme/public/js/anatomy/shell/desktop.ts";
+import type { AppsScreenEntry, IconRoute } from "../../carbon_theme/public/js/anatomy/shell/desktop.ts";
 import type { FrappeBootAppEntry, FrappeDesktopIconRecord } from "frappe-types";
 
 // -- the Apps screen (the default desktop) -----------------------------------------
@@ -45,7 +49,7 @@ const apps: FrappeBootAppEntry[] = [
 ];
 
 /** `sidebar.app_landing_route`: the app's declared route is what it returns when it has one. */
-const landing = (a: FrappeBootAppEntry): string | null => a.app_route || null;
+const landing = (a: AppsScreenEntry): string | null => a.app_route || null;
 
 describe("buildAppsTree (DesktopPage.render_app_icons, desktop.js:169-212)", () => {
 	const tree = buildAppsTree(apps, "erpnext", landing);
@@ -84,6 +88,30 @@ describe("buildAppsTree (DesktopPage.render_app_icons, desktop.js:169-212)", () 
 		const t = buildAppsTree([erpnext], null, landing, (s) => `<${s}>`);
 		assert.equal(t[0]?.title, "<ERPNext>");
 		assert.equal(t[0]?.label, "erpnext");
+	});
+});
+
+describe("buildAppsTree with Studio apps (frappe.utils.get_apps_screen_apps)", () => {
+	const studio = [{ name: "studio_app", app_title: "Studio App", route: "studio" }];
+	it("places Studio apps ahead of Framework, after the installed apps", () => {
+		const t = buildAppsTree(apps, null, landing, undefined, studio);
+		assert.deepEqual(
+			t.map((e) => e.label),
+			["erpnext", "helpdesk", "hrms", "wiki", "studio_app", "frappe"],
+		);
+		assert.equal(t.find((e) => e.label === "studio_app")?.href, "/studio");
+	});
+	it("with no Framework among the apps, the Studio apps come last", () => {
+		const t = buildAppsTree([erpnext], null, landing, undefined, studio);
+		assert.deepEqual(
+			t.map((e) => e.label),
+			["erpnext", "studio_app"],
+		);
+	});
+	it("reads Studio apps out of the boot payload, dropping an entry without its fields", () => {
+		assert.deepEqual(studioAppsOf({ studio_apps: [...studio, { name: 1 }] }), studio);
+		assert.deepEqual(studioAppsOf({}), []);
+		assert.deepEqual(studioAppsOf(null), []);
 	});
 });
 

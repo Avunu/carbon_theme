@@ -33,11 +33,8 @@
 	--text-2xl: 16px; // heading-02 (was 18)
 	--text-4xl: 20px; // heading-03 (was 24)
 	--text-5xl: 28px; // heading-04 (was 26)
-	--text-8xl: 42px; // heading-06 (was 40)
-	--text-9xl: 42px; // heading-06 (was 44)
-	--text-10xl: 54px; // heading-07 (was 48)
-	--text-11xl: 54px; // heading-07 (was 52)
-	--text-12xl: 54px; // heading-07 (was 56)
+	// frappe 16.60 declares no size above 6xl, so the theme no longer pins
+	// --text-8xl to --text-12xl (heading-06 and heading-07 sizes nothing uses)
 
 	// The paragraph sizes (`--text-p-*`) repeat the 13px and 17px steps, so they
 	// follow the same snap rather than keep a size Carbon does not have.

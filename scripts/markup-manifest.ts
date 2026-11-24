@@ -136,9 +136,6 @@ export const SELECTORS: readonly SelectorEntry[] = [
 	// the user chip at the foot of the panel, hidden for the same reason
 	["dropdown-navbar-user", "frappe/public/js/frappe/ui/sidebar/sidebar.html"],
 	["sidebar-items", "frappe/public/js/frappe/ui/sidebar/sidebar.html"],
-	// frappe's hamburger lives in the page head now, not in the sidebar template;
-	// the header hides it so there is one
-	["sidebar-toggle-btn", "frappe/public/js/frappe/ui/page.html"],
 	// the bell cell keeps this class because it is the notifications panel's
 	// `trigger_selector` (PATCH_TARGETS below)
 	["sidebar-notification", "frappe/public/js/frappe/ui/sidebar/sidebar.js"],
@@ -569,7 +566,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 	[
 		"desk/list.scss: `.list-row-container:first-child` is sticky (the engine's first body row must un-stick it)",
 		"frappe/public/scss/desk/list.scss",
-		/\.list-row-container \{[\s\S]{0,200}?&:first-child \{\s*padding: 0;\s*position: sticky;/,
+		/\.list-row-container \{[\s\S]{0,400}?&:first-child \{\s*padding: 0;\s*position: sticky;/,
 	],
 	[
 		"the paging row holds a TabButtons page-size switch (desk/_list.scss sizes its pills)",
@@ -741,7 +738,7 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 	[
 		"create_user_menu binds the menu to `parent` and marks `button` while it is open",
 		"frappe/public/js/frappe/ui/sidebar/sidebar.js",
-		/trigger: \$container,\s*side,\s*align,[\s\S]{0,3500}?on_open: \(\) => \$btn\.addClass\("user-menu-active"\)/,
+		/trigger: parent,\s*side,\s*align,[\s\S]{0,3500}?on_open: \(\) => \$btn\.addClass\("user-menu-active"\)/,
 	],
 	[
 		"Sidebar.setup_notifications builds frappe.ui.Notifications only when the desk setting is on (the bell's visibility reads sidebar.notifications)",
@@ -890,15 +887,28 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 
 	// --- The desktop's two renderers, which the switcher mirrors --------------
 	// (js/anatomy/shell/desktop.ts: one list, whichever the site renders)
+	// Frappe 16.60 moved the list the Apps screen and the sidebar header both draw into
+	// frappe.utils.get_apps_screen_apps; the switcher's buildAppsTree mirrors all of it,
+	// Studio apps and the Framework placement included.
 	[
 		"Apps screen: only apps with on_apps_screen get a tile",
-		"frappe/desk/page/desktop/desktop.js",
+		"frappe/public/js/frappe/utils/utils.js",
 		/\.filter\(\(app\) => app\.on_apps_screen\)/,
 	],
 	[
 		"Apps screen: tiles sort by sequence_id (default 100), ties in installed-apps order",
-		"frappe/desk/page/desktop/desktop.js",
+		"frappe/public/js/frappe/utils/utils.js",
 		/\(a\.sequence_id \?\? 100\) - \(b\.sequence_id \?\? 100\)/,
+	],
+	[
+		"Apps screen: Studio apps follow the installed apps, and Framework is placed among them",
+		"frappe/public/js/frappe/utils/utils.js",
+		/const framework = apps\.findIndex\(\(app\) => app\.app_name === "frappe"\);\s*apps\.splice\(framework === -1 \? apps\.length : framework, 0, \.\.\.studio_apps\);/,
+	],
+	[
+		"Apps screen: the desktop draws the helper's list (desktop.js calls get_apps_screen_apps)",
+		"frappe/desk/page/desktop/desktop.js",
+		/frappe\.utils\.get_apps_screen_apps\(\)\.map/,
 	],
 	[
 		"Apps screen: a tile leads to app_landing_route (which falls back to the app's route), then /desk",

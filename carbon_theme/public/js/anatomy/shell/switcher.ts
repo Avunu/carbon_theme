@@ -55,7 +55,8 @@
 // `project()`, and a fresh one should show where the user is.
 import type { FrappeDesktopIconRecord } from "frappe-types";
 import type { ShellModel } from "./model.ts";
-import { buildAppsTree, buildDesktopTree } from "./desktop.ts";
+import { buildAppsTree, buildDesktopTree, studioAppsOf } from "./desktop.ts";
+import type { FrappeBootAppEntry } from "frappe-types";
 import type { DesktopEntry, IconRoute } from "./desktop.ts";
 import { chevronDown16Switcher, switcher20 } from "../../generated/shell-icons.ts";
 import { esc, isHTMLElement } from "./dom.ts";
@@ -205,8 +206,12 @@ export function mountSwitcher(header: HTMLElement, global: HTMLElement): ShellSw
 			: buildAppsTree(
 					(boot && boot.app_data) || [],
 					model.app ? model.app.app_name : null,
-					(app) => (sidebar ? sidebar.app_landing_route(app) : null),
+					// frappe-types types the landing ladder for a full boot entry, but it reads only the
+					// name and route, which a Studio app carries too (desktop.js passes the helper's
+					// partial entries the same way)
+					(app) => (sidebar ? sidebar.app_landing_route(app as FrappeBootAppEntry) : null),
 					translate,
+					studioAppsOf(boot),
 				);
 		const parts: string[] = [];
 		tree.forEach((entry, i) => {

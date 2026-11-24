@@ -81,34 +81,81 @@ function targetFor(href: string): string | null {
 }
 
 /**
+ * A Studio app, as `frappe.boot.studio_apps` lists it. frappe-types 16.6 does not type
+ * the key, so it is read through `studioAppsOf` and checked there.
+ */
+export interface StudioAppEntry {
+	name: string;
+	app_title: string;
+	route: string;
+}
+
+/** What the Apps screen's tiles are drawn from: an installed app, or a Studio app as `app_name`/`app_route`. */
+export type AppsScreenEntry = Pick<FrappeBootAppEntry, "app_name" | "app_title" | "app_route">;
+
+const isStudioApp = (value: unknown): value is StudioAppEntry =>
+	typeof value === "object" &&
+	value !== null &&
+	"name" in value &&
+	typeof value.name === "string" &&
+	"app_title" in value &&
+	typeof value.app_title === "string" &&
+	"route" in value &&
+	typeof value.route === "string";
+
+/** The Studio apps in `frappe.boot`, or none when the boot payload has no such key. */
+export function studioAppsOf(boot: unknown): readonly StudioAppEntry[] {
+	if (typeof boot !== "object" || boot === null || !("studio_apps" in boot)) return [];
+	return Array.isArray(boot.studio_apps) ? boot.studio_apps.filter(isStudioApp) : [];
+}
+
+/**
  * The Apps screen's tiles, as switcher rows.
  *
- * @param apps       `frappe.boot.app_data`
- * @param current    `app_name` of `sidebar.get_sidebar_app()`, or `null` on the launcher
- * @param route      `sidebar.app_landing_route(app)`
- * @param translate  `__`
+ * Mirrors `frappe.utils.get_apps_screen_apps` (Frappe 16.60): the installed apps that
+ * opted in, by `sequence_id`, then the Studio apps placed ahead of Framework (or last when
+ * there is none).
+ *
+ * @param apps        `frappe.boot.app_data`
+ * @param current     `app_name` of `sidebar.get_sidebar_app()`, or `null` on the launcher
+ * @param route       `sidebar.app_landing_route(app)`
+ * @param translate   `__`
+ * @param studioApps  `frappe.boot.studio_apps`, through `studioAppsOf`
  */
 export function buildAppsTree(
 	apps: readonly FrappeBootAppEntry[],
 	current: string | null,
-	route: (app: FrappeBootAppEntry) => string | null | undefined,
+	route: (app: AppsScreenEntry) => string | null | undefined,
 	translate: DesktopTranslate = identity,
+	studioApps: readonly StudioAppEntry[] = [],
 ): DesktopEntry[] {
-	return apps
+	const installed: AppsScreenEntry[] = apps
 		.filter((app) => app.on_apps_screen)
 		.map((app, index) => ({ app, index }))
 		.sort((a, b) => (a.app.sequence_id ?? 100) - (b.app.sequence_id ?? 100) || a.index - b.index)
-		.map(({ app }) => {
-			const href = route(app) || "/desk";
-			return {
-				label: app.app_name,
-				title: translate(app.app_title || app.app_name),
-				href,
-				target: targetFor(href),
-				selected: !!current && app.app_name === current,
-				children: [],
-			};
-		});
+		.map(({ app }) => app);
+	const ordered = [...installed];
+	const framework = ordered.findIndex((app) => app.app_name === "frappe");
+	ordered.splice(
+		framework === -1 ? ordered.length : framework,
+		0,
+		...studioApps.map((app) => ({
+			app_name: app.name,
+			app_title: app.app_title,
+			app_route: `/${app.route}`,
+		})),
+	);
+	return ordered.map((app) => {
+		const href = route(app) || "/desk";
+		return {
+			label: app.app_name,
+			title: translate(app.app_title || app.app_name),
+			href,
+			target: targetFor(href),
+			selected: !!current && app.app_name === current,
+			children: [],
+		};
+	});
 }
 
 /**
