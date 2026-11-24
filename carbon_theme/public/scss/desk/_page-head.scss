@@ -79,18 +79,6 @@
 .page-title {
 	flex: 1;
 
-	// The UI Shell header carries the hamburger wherever it is mounted (768px
-	// and up; js/anatomy/ui_shell.ts). frappe draws a second one at the start of
-	// the page head, and hides it only from 992px (page.scss:20-24), so between
-	// 768 and 991px the page showed two controls for one sidebar. The header's
-	// is the one that stays: it is Carbon's, it is on every route, and it
-	// carries the aria-expanded state. Below 768px the shell does not mount and
-	// frappe's own header stands, so this one is the only control and is left
-	// alone.
-	body.cf-has-shell & .sidebar-toggle-btn {
-		display: none;
-	}
-
 	.title-area {
 		display: flex;
 		align-items: flex-end;
