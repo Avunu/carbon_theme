@@ -39,9 +39,11 @@ const manifestPath = path.join(outDir, "manifest.json");
 /**
  * Gzip ceiling for everything the browser fetches before the chat can open (JS and CSS).
  * Raised from 400 KB when Flow's transport (stream.ts) joined the entry: develop measured
- * 399.9 KB in CI and the branch 401.0 KB, so the old line left no room for any growth.
+ * 399.9 KB in CI and the branch 401.0 KB. Raised again to 420 KB for @carbon/ai-chat-components
+ * 1.15, whose toolbar and code-snippet register eagerly and pull copy-button's stylesheet in
+ * (about +10 KB gzip, 411.5 KB in CI).
  */
-const BUDGET_GZIP = 410 * 1024;
+const BUDGET_GZIP = 420 * 1024;
 
 /**
  * Inputs that must never reach the first-open set. react is only a peer of the package
