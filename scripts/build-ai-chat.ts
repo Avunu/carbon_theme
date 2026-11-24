@@ -36,8 +36,12 @@ const scssFile = path.join(publicDir, "scss", "ai_chat", "chat.scss");
 const outDir = path.join(publicDir, "dist", "ai_chat");
 const manifestPath = path.join(outDir, "manifest.json");
 
-/** Gzip ceiling for everything the browser fetches before the chat can open (JS and CSS). */
-const BUDGET_GZIP = 400 * 1024;
+/**
+ * Gzip ceiling for everything the browser fetches before the chat can open (JS and CSS).
+ * Raised from 400 KB when Flow's transport (stream.ts) joined the entry: develop measured
+ * 399.9 KB in CI and the branch 401.0 KB, so the old line left no room for any growth.
+ */
+const BUDGET_GZIP = 410 * 1024;
 
 /**
  * Inputs that must never reach the first-open set. react is only a peer of the package
