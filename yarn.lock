@@ -34,10 +34,10 @@
     hashery "^1.5.1"
     keyv "^5.6.0"
 
-"@carbon/ai-chat-components@1.14.0":
-  version "1.14.0"
-  resolved "https://registry.yarnpkg.com/@carbon/ai-chat-components/-/ai-chat-components-1.14.0.tgz#0cbf61204506a60217fa85572af7d2f6f4dcdc9b"
-  integrity sha512-LdcUK8Snvea9JpIDsFaDLOhwKNl+0Oihlg4L7tYVhE1/2yu5TpbZUPInT1t/7gIRhJAx3w07KtIAnHEhvgQzeQ==
+"@carbon/ai-chat-components@1.15.0":
+  version "1.15.0"
+  resolved "https://registry.yarnpkg.com/@carbon/ai-chat-components/-/ai-chat-components-1.15.0.tgz#e1cc996f61624f54769c58ae2a3fc520dd39735d"
+  integrity sha512-vIiRZru4wbNS3KzD1Zh7YIuwWS8CRwTgeXTLdyVx0NFeNS9r1edYfKYJUpwsZHA6uhs20lZ1L2Q6bbqRm8gnOA==
   dependencies:
     "@carbon/icon-helpers" "^10.47.0"
     "@carbon/icons" "^11.53.0"
@@ -140,14 +140,7 @@
   dependencies:
     "@ibm/telemetry-js" "^1.2.1"
 
-"@carbon/icon-helpers@^10.47.0":
-  version "10.84.0"
-  resolved "https://registry.yarnpkg.com/@carbon/icon-helpers/-/icon-helpers-10.84.0.tgz#54cb2a7c12cb912efa6caa45f3f610ef7bd30538"
-  integrity sha512-G+LVR42568CbluBzu7uV+ZMmI5tT2ojnWCmRgDB8Z3xKls1D5DU6fQHyiAg10JjLo+zBGUih6eEVSCqq9oXkEw==
-  dependencies:
-    "@ibm/telemetry-js" "^1.5.0"
-
-"@carbon/icon-helpers@^10.85.0":
+"@carbon/icon-helpers@^10.47.0", "@carbon/icon-helpers@^10.85.0":
   version "10.85.0"
   resolved "https://registry.yarnpkg.com/@carbon/icon-helpers/-/icon-helpers-10.85.0.tgz#33527c06933a728f1f71db9bbd1dbcb5413267da"
   integrity sha512-slX8RET9XZ0rvlXEvW8LbNM26nNo0d8/I2cva/oBX/DVdBSn6FnH7BHBPChFzbzYZjMb+YGhBafUa3sLuE3RDA==
