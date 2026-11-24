@@ -34,6 +34,8 @@ import { fileURLToPath } from "node:url";
 import {
 	SELECTORS,
 	PATCH_TARGETS,
+	FLOW_PATCH_TARGETS,
+	FLOW_MIN_FRAPPE,
 	MIRRORED_LITERALS,
 	SHADOWED_BUNDLES,
 	JS_BUNDLES,
@@ -269,7 +271,21 @@ for (const [cls, file] of SELECTORS) {
 }
 
 // ---- Check 2: runtime patch targets ----------------------------------------
-for (const [id, file, re] of PATCH_TARGETS) {
+// The AI assistant's Flow launcher exists from Frappe 16.60. On an older pin its files are
+// absent by design, not restructured, so those targets are skipped and the skip is said once.
+// A version that cannot be read keeps them in: the conservative answer is to look.
+const [minMajor, minMinor] = FLOW_MIN_FRAPPE;
+const judged = /^(\d+)\.(\d+)/.exec(frappeVersion);
+const predatesFlow =
+	judged !== null &&
+	(Number(judged[1]) < minMajor || (Number(judged[1]) === minMajor && Number(judged[2]) < minMinor));
+if (predatesFlow) {
+	console.log(
+		`[audit-markup] frappe ${frappeVersion} predates Flow (${minMajor}.${minMinor}): not checking the ${FLOW_PATCH_TARGETS.length} AI-assistant launcher targets`,
+	);
+}
+const patchTargets = predatesFlow ? PATCH_TARGETS : [...PATCH_TARGETS, ...FLOW_PATCH_TARGETS];
+for (const [id, file, re] of patchTargets) {
 	const text = read(file);
 	if (text === null) {
 		warn(`missing source ${file} — cannot verify ${id}`);

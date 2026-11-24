@@ -935,8 +935,22 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		"frappe/public/js/frappe/utils/utils.js",
 		/sidebar_for_module\(module\)\s*\{\s*if \(!module\) return undefined;\s*const all = frappe\.boot\.module_sidebars \|\| \{\};\s*return all\[module\] \|\| Object\.values\(all\)\.find\(\(entry\) => entry\.module === module\)/,
 	],
+	[
+		"frappe.is_mobile threshold (the shell never mounts below it)",
+		"frappe/public/js/frappe/utils/common.js",
+		/innerWidth < 768/,
+	],
+];
 
-	// --- AI assistant takeover (js/anatomy/shell/assistant.ts, flow_entry.ts) --
+/**
+ * Frappe's built-in Flow launcher, which the AI assistant takes over (js/anatomy/shell/
+ * assistant.ts and flow_entry.ts). Frappe moved Flow into the framework in 16.60, so these
+ * files are absent on an older pin: audit-markup runs them only against FLOW_MIN_FRAPPE or
+ * later, and says once when the pinned frappe predates it.
+ */
+export const FLOW_MIN_FRAPPE: readonly [major: number, minor: number] = [16, 60];
+
+export const FLOW_PATCH_TARGETS: readonly PatchTarget[] = [
 	// The Carbon chat replaces Frappe's built-in Flow panel (Frappe 16.60+). What the
 	// takeover leans on in the launcher:
 	[
@@ -993,11 +1007,6 @@ export const PATCH_TARGETS: readonly PatchTarget[] = [
 		"the page slides with html[data-flow-sliding] (desk/_ui-shell.scss slides the header with it)",
 		"frappe/public/js/flow_launcher.bundle.js",
 		/html\[data-flow-sliding\] \{ transition: margin-right/,
-	],
-	[
-		"frappe.is_mobile threshold (the shell never mounts below it)",
-		"frappe/public/js/frappe/utils/common.js",
-		/innerWidth < 768/,
 	],
 ];
 
