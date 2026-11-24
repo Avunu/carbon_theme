@@ -6,14 +6,14 @@ order: 5
 updated: 2026-10-26
 ---
 
-When Frappe's [flow](https://github.com/frappe/flow_client) app is installed on the site, the header gets an **AI assistant** button directly before the switcher. It opens a chat panel built from Carbon AI Chat that talks to flow's assistant. The panel replaces flow's own panel; the assistant, its tools and what it may do are flow's.
+With Frappe's built-in Flow (Frappe 16.60 and later), the header gets an **AI assistant** button directly before the switcher, for everyone Frappe lets use Flow (the Flow User role or System Manager). It opens a chat panel built from Carbon AI Chat that talks to Flow's assistant. The panel replaces Flow's own panel, and `Ctrl+I` opens it; the assistant, its tools and what it may do are Flow's.
 
 Without flow, or on a site in read-only mode, there is no button. On a phone-sized window (below 768px) there is no header and so no assistant.
 
 ## Open and close the panel
 
 - Click **AI assistant** in the header, or press Ctrl+I.
-- The panel docks to the right, 360px wide. **Expand** widens it to the whole window and **Collapse** brings it back. In a narrow window it always takes the full width.
+- The panel docks to the right, 360px wide, and pushes the page over so nothing on it is covered. **Expand** widens it to the whole window and **Collapse** brings it back. In a narrow window it always takes the full width.
 - To close it, click **AI assistant** again, press Ctrl+I, use **Close** in the panel's header, or press Escape. Escape inside a message, an approval card, the feedback box or the conversation history acts there first: in a message it returns you to the prompt, and the panel stays open. The panel remembers whether it was open and expanded, and which conversation you had open, when you reload.
 
 The first time you open it, the panel loads its code, which takes a moment. If that fails, it shows "The AI assistant could not be loaded" with **Retry**. **Reload the page** is added when part of the code failed to load, and **Open the Flow panel** when flow's own panel is available. See [Troubleshooting](troubleshooting.md#the-ai-assistant).
@@ -56,7 +56,7 @@ A file the panel refuses is named in a line under the prompt with the reason, fo
 If flow does not say which file types it reads (an older flow), there is no **Attach files** button and dropping or pasting a file does nothing in the panel.
 
 > [!NOTE]
-> Attached files are stored on the site as private files. A file you remove before sending is deleted again. A file you sent stays after you delete the conversation, until flow's own clean-up removes it 30 days after the conversation was last used.
+> Attached files are stored on the site as private files. A file you remove before sending is deleted again. A file you sent stays after you delete the conversation, until Flow's own clean-up removes it 30 days after the conversation was last used.
 
 ## Rate a reply
 

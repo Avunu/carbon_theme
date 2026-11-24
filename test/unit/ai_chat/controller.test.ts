@@ -206,7 +206,8 @@ interface FakeClient extends FlowClient {
 	/** An aborted signal rejects the held upload or attach call, as a real request does. False: the abort loses the race. */
 	abortRejects: boolean;
 	starts: StartRunParams[];
-	resumes: { run: string; answers: Readonly<Record<string, string>> }[];
+	/** The built-in Flow resumes and stops by session. */
+	resumes: { session: string; answers: Readonly<Record<string, string>> }[];
 	stops: string[];
 	recovers: string[];
 	feedback: { run: string; rating: string; comment?: string | undefined }[];
@@ -275,14 +276,14 @@ function fakeClient(): FakeClient {
 			if (!script) throw new Error("no start script queued");
 			return script(signal);
 		},
-		resumeRun(run, answers, signal) {
-			client.resumes.push({ run, answers });
+		resumeRun(session, answers, signal) {
+			client.resumes.push({ session, answers });
 			const script = resumeScripts.shift();
 			if (!script) throw new Error("no resume script queued");
 			return script(signal);
 		},
-		async stopRun(run) {
-			client.stops.push(run);
+		async stopRun(session) {
+			client.stops.push(session);
 			if (client.stopFails) throw new Error("stop failed");
 		},
 		async recoverSession(session) {
@@ -656,7 +657,7 @@ describe("paused runs", () => {
 		g.end();
 		await turn;
 
-		assert.deepEqual(h.client.resumes, [{ run: RUN, answers: ANSWERS_APPROVE_ALL }]);
+		assert.deepEqual(h.client.resumes, [{ session: SESSION, answers: ANSWERS_APPROVE_ALL }]);
 		assert.equal(h.store.get().messages.length, count, "no new message");
 		const response = lastResponse(h.store);
 		assert.equal(response.id, pausedId);
@@ -692,7 +693,9 @@ describe("paused runs", () => {
 		await h.controller.send(text);
 
 		assert.equal(h.client.starts.length, 1, "a redirect never starts a run");
-		assert.deepEqual(h.client.resumes, [{ run: RUN, answers: { [CALL_CREATE]: text, [CALL_DELETE]: text } }]);
+		assert.deepEqual(h.client.resumes, [
+			{ session: SESSION, answers: { [CALL_CREATE]: text, [CALL_DELETE]: text } },
+		]);
 		assert.equal(h.store.get().messages.length, count, "the redirect adds no request row");
 		const response = lastResponse(h.store);
 		const cards = response.output.generic.filter(isFlowApprovalItem);
@@ -764,7 +767,7 @@ describe("stop", () => {
 		await h.controller.stop();
 
 		assert.equal(g.signal()?.aborted, true);
-		assert.deepEqual(h.client.stops, [RUN]);
+		assert.deepEqual(h.client.stops, [SESSION]);
 		assert.deepEqual(h.client.recovers, []);
 		const response = lastResponse(h.store);
 		assert.equal(h.store.getMessageState(response.id ?? ""), "complete");
@@ -843,7 +846,7 @@ describe("stop", () => {
 		await h.controller.stop();
 		await turn;
 
-		assert.deepEqual(h.client.stops, [RUN]);
+		assert.deepEqual(h.client.stops, [SESSION]);
 		assert.equal(h.store.get().status, "ready");
 		assert.ok(!stepStatuses(lastResponse(h.store)).includes("processing"));
 	});
@@ -2557,7 +2560,7 @@ describe("an interrupted stream", () => {
 		await h.controller.stop();
 		await turn;
 		assert.deepEqual(h.client.recovers, []);
-		assert.deepEqual(h.client.stops, [RUN]);
+		assert.deepEqual(h.client.stops, [SESSION]);
 	});
 });
 
