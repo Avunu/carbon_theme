@@ -2,7 +2,7 @@
 // For license information, please see license.txt
 
 // The AI assistant's header action, its host panel, the lazy loader and the takeover
-// of flow's own panel. Always loaded (carbon_anatomy.bundle), so everything about the
+// of Frappe's built-in Flow panel (Frappe 16.60+). Always loaded (carbon_anatomy.bundle), so everything about the
 // chat itself stays behind `import()`; see scripts/build-ai-chat.ts for what that loads.
 //
 // Like every anatomy hook it fails soft: a thrown error here must leave the desk as it
@@ -37,7 +37,7 @@ import {
 	entrySpecifier,
 	FLOW_PANEL_STATE_KEY,
 	isChatModule,
-	isFlowPanel,
+	isFlowLauncher,
 	MANIFEST_URL,
 	PANEL_STATE_KEY,
 	parseManifest,
@@ -46,8 +46,9 @@ import {
 	serialisePanelState,
 	SESSION_USER_KEY,
 } from "./assistant_gate.ts";
-import type { FlowPanelLike } from "./assistant_gate.ts";
+import type { FlowLauncherLike } from "./assistant_gate.ts";
 import { esc, isHTMLElement } from "./dom.ts";
+import { claimFlowEntryPoints, releaseFlowEntryPoints } from "./flow_entry.ts";
 
 export interface ShellAssistant {
 	/** `button.cds--header__action.cf-ai-trigger#cf-ai-trigger`. ui_shell.ts places it directly before the switcher's button. */
@@ -66,7 +67,6 @@ export interface ShellAssistant {
 
 const BUTTON_ID = "cf-ai-trigger";
 const HOST_ID = "cf-ai-panel";
-const SHORTCUT = "ctrl+i";
 const CSS_TIMEOUT_MS = 15000;
 // the breakpoint where desk/_ai-chat.scss makes the panel full width
 const NARROW_QUERY = "(width <= 42rem)";
@@ -95,64 +95,47 @@ function writeStorage(key: string, value: string): void {
 	}
 }
 
-// -- flow ---------------------------------------------------------------------
+// -- Frappe's Flow launcher ---------------------------------------------------
+
+/** Frappe's own `window.flow`, read once, before the takeover puts the assistant's in its place. */
+let frappeLauncher: FlowLauncherLike | null | undefined;
 
 /**
- * `frappe.flow` belongs to apps/flow and is not in frappe-types, so it is read as
- * `unknown` and proven by `isFlowPanel`. Null when flow's bundle failed, or when an
- * older flow has no such panel: the takeover then has nothing to hide.
+ * `window.flow` as Frappe's launcher set it (flow_launcher.bundle.js), proven by
+ * `isFlowLauncher`. Null when the launcher is not on the page. Read on first use, which is
+ * before `takeOver` replaces it, and kept, so `release` can put it back.
  */
-function readFlowPanel(): FlowPanelLike | null {
-	try {
-		const flow: unknown = Reflect.get(frappe, "flow");
-		if (typeof flow !== "object" || flow === null) return null;
-		const panel: unknown = Reflect.get(flow, "panel");
-		return isFlowPanel(panel) ? panel : null;
-	} catch {
-		return null;
+function readLauncher(): FlowLauncherLike | null {
+	if (frappeLauncher === undefined) {
+		const flow: unknown = Reflect.get(window, "flow");
+		frappeLauncher = isFlowLauncher(flow) ? flow : null;
 	}
+	return frappeLauncher;
+}
+
+/** True while the launcher's panel is open: its `.panel`, in an open shadow root, is `inert` while closed. */
+function launcherOpen(): boolean {
+	const host = document.querySelector("flow-launcher");
+	const panel = host && host.shadowRoot ? host.shadowRoot.querySelector(".panel") : null;
+	return panel instanceof HTMLElement && !panel.inert;
 }
 
 /**
- * Close flow's slide-over. `FlowPanel.hide()` persists `session: store.sessionName`,
- * which is still null until flow's own async restore ran, so a hide right after boot
- * would erase the stored session; `raw` is the state as it was BEFORE that, and goes
- * back with `open: false` so flow keeps its session for when it is handed the panel back.
+ * Close the launcher's panel if it is open, and store it closed. `raw` is its state as it
+ * was BEFORE that (see `closedFlowState`), so the chat it showed is kept for the seed and
+ * for when the panel is handed back.
  */
-function hideFlow(raw: string | null): FlowPanelLike | null {
-	const panel = readFlowPanel();
-	if (!panel) return null;
+function hideFlow(raw: string | null): FlowLauncherLike | null {
+	const launcher = readLauncher();
+	if (!launcher) return null;
 	try {
-		if (panel.visible) {
-			panel.hide();
-			const closed = closedFlowState(raw);
-			if (closed !== null) writeStorage(FLOW_PANEL_STATE_KEY, closed);
-		}
+		if (launcherOpen()) launcher.toggle();
+		const closed = closedFlowState(raw);
+		if (closed !== null) writeStorage(FLOW_PANEL_STATE_KEY, closed);
 	} catch (error) {
 		console.error(error);
 	}
-	return panel;
-}
-
-/**
- * `add_shortcut` calls `keys.off(shortcut, page)` first, and without a `page` that
- * removes every handler for the key (keyboard.js:62-80): registering replaces flow's
- * Ctrl+I, and flow registering again would replace ours.
- */
-function registerShortcut(shortcut: string, description: string, action: () => void): void {
-	try {
-		frappe.ui.keys.add_shortcut({
-			shortcut,
-			// returns nothing, so frappe preventDefaults the browser's own binding
-			action: () => {
-				action();
-			},
-			description,
-			ignore_inputs: true,
-		});
-	} catch (error) {
-		console.error(error);
-	}
+	return launcher;
 }
 
 // -- lazy loader --------------------------------------------------------------
@@ -344,21 +327,30 @@ export function mountAssistant(global: HTMLElement): ShellAssistant {
 
 	// -- flow takeover ----------------------------------------------------------
 
-	function takeOver(raw: string | null): FlowPanelLike | null {
-		const panel = hideFlow(raw);
-		// CSS hides #flow-root even when there is no panel object to hide
+	// Ctrl+I, [data-flow-toggle] and `window.flow` all reach this panel instead of the
+	// launcher's; CSS hides <flow-launcher> (desk/_ai-chat.scss).
+	function takeOver(raw: string | null): FlowLauncherLike | null {
+		const launcher = hideFlow(raw);
 		document.body.classList.add("cf-ai-chat");
-		registerShortcut(SHORTCUT, __("Toggle AI assistant"), toggle);
-		return panel;
+		claimFlowEntryPoints(toggle);
+		if (launcher) {
+			// A chat named by another app's `window.flow.open({ session })` is not switched
+			// to; the panel opens on the conversation it has.
+			const standIn: FlowLauncherLike = { toggle: () => toggle(), open: () => open() };
+			Reflect.set(window, "flow", standIn);
+		}
+		return launcher;
 	}
 
-	// Hand Ctrl+I and the screen back to flow. Its panel is not shown for the user: they
-	// asked for ours, and two panels at once would be worse than the failure.
+	// Hand Ctrl+I, [data-flow-toggle], `window.flow` and the screen back to the launcher. Its
+	// panel is not shown for the user: they asked for ours, and two panels at once would be
+	// worse than the failure.
 	function release(): void {
 		released = true;
 		document.body.classList.remove("cf-ai-chat");
-		const panel = readFlowPanel();
-		if (panel) registerShortcut(SHORTCUT, __("Toggle Flow panel"), () => panel.toggle());
+		releaseFlowEntryPoints();
+		const launcher = readLauncher();
+		if (launcher) Reflect.set(window, "flow", launcher);
 	}
 
 	// -- status block -----------------------------------------------------------
@@ -388,7 +380,7 @@ export function mountAssistant(global: HTMLElement): ShellAssistant {
 
 	function showFailure(): void {
 		const hadFocus = opened && (focusIsOnStatusOrTrigger() || document.activeElement === document.body);
-		const block = setStatus(failureHtml(readFlowPanel() !== null, importFailures > 0), false);
+		const block = setStatus(failureHtml(readLauncher() !== null, importFailures > 0), false);
 		if (!hadFocus) return;
 		const retry = block.querySelector<HTMLElement>("[data-action=retry]");
 		if (retry) retry.focus();
@@ -502,33 +494,29 @@ export function mountAssistant(global: HTMLElement): ShellAssistant {
 			window.location.reload();
 		} else if (name === "flow") {
 			close();
-			const panel = readFlowPanel();
-			if (panel) panel.show();
+			const launcher = readLauncher();
+			if (launcher) launcher.open();
 		}
 	});
 
 	// -- boot -------------------------------------------------------------------
 
-	// The snapshot comes first: hiding flow's panel rewrites flow-panel-state (see hideFlow)
+	// The snapshot comes first: closing the launcher rewrites its stored state (see hideFlow)
 	const flowRaw = readStorage(FLOW_PANEL_STATE_KEY);
 	// the chat writes "" for a deliberate new chat, so a cleared session is not resurrected
 	const seed = reconcileSession(user, readStorage(SESSION_USER_KEY), readStorage(SESSION_KEY), flowRaw);
 	if (seed !== null) writeStorage(SESSION_KEY, seed);
 	writeStorage(SESSION_USER_KEY, user);
 
-	const panel = takeOver(flowRaw);
-	record("Carbon AI assistant (flow takeover)", panel !== null);
+	const launcher = takeOver(flowRaw);
+	record("Carbon AI assistant (flow takeover)", launcher !== null);
 
 	apply();
 	narrow.addEventListener("change", apply);
 	new MutationObserver(syncInert).observe(document.body, { childList: true });
 	setTimeout(() => {
-		// another `app_ready` handler of this tick may have shown flow's panel or
-		// registered its Ctrl+I after us
-		if (!released) {
-			hideFlow(flowRaw);
-			registerShortcut(SHORTCUT, __("Toggle AI assistant"), toggle);
-		}
+		// another `app_ready` handler of this tick may have opened the launcher's panel
+		if (!released) hideFlow(flowRaw);
 		if (saved.open) show(false);
 	}, 0);
 

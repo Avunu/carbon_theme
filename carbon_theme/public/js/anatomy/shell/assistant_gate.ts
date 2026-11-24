@@ -10,9 +10,6 @@
 import type { FrappeBootPartial } from "frappe-types";
 import type { ChatModule } from "../../ai_chat/entry.ts";
 
-/** The app whose `frappe.boot.versions` entry switches the feature on. */
-export const FLOW_APP = "flow";
-
 /** Where `scripts/build-ai-chat.ts` writes the lazy bundle (served from the app's public/dist). */
 export const ASSET_BASE = "/assets/carbon_theme/dist/ai_chat/";
 export const MANIFEST_URL = `${ASSET_BASE}manifest.json`;
@@ -21,8 +18,11 @@ export const MANIFEST_URL = `${ASSET_BASE}manifest.json`;
 export const PANEL_STATE_KEY = "cf-ai-panel";
 /** localStorage: the Frappe user that SESSION_KEY's value (ai_chat/storage_keys.ts) belongs to (see `reconcileSession`). */
 export const SESSION_USER_KEY = "cf-ai-session-user";
-/** localStorage: flow's own panel state, `{open, fullscreen, width, session}` (apps/flow/frontend/src/lib/panelState.js). */
-export const FLOW_PANEL_STATE_KEY = "flow-panel-state";
+/**
+ * localStorage: the state of Frappe's Flow launcher, `{open, width, path, ...}`, where `path`
+ * is the chat it shows (`/s/<session>`) (frappe/public/js/flow_launcher.bundle.js `STORE_KEY`).
+ */
+export const FLOW_PANEL_STATE_KEY = "flow_launcher";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -39,11 +39,14 @@ function parseJson(raw: string | null | undefined): unknown {
 
 // -- gate ---------------------------------------------------------------------
 
-/** Flow is installed (and the site is not read-only, where flow could not write its sessions). */
-export function shouldMountAssistant(boot: FrappeBootPartial | null | undefined): boolean {
+/**
+ * Frappe's Flow launcher is on the page (`window.flow`, passed as `flow`), and the site is not
+ * read-only, where Flow could not write its sessions. Frappe adds the launcher only for users
+ * who may read Flow Session (frappe/flow/launcher.py), so this follows Flow's own permissions.
+ */
+export function shouldMountAssistant(flow: unknown, boot: FrappeBootPartial | null | undefined): boolean {
 	if (!boot || boot.read_only === true) return false;
-	const version = boot.versions ? boot.versions[FLOW_APP] : undefined;
-	return typeof version === "string" && version !== "";
+	return isFlowLauncher(flow);
 }
 
 // -- panel state --------------------------------------------------------------
@@ -78,8 +81,9 @@ export function serialisePanelState(state: PanelState): string {
 export function seedSession(own: string | null, flowStateRaw: string | null): string | null {
 	if (own !== null) return null;
 	const flow = parseJson(flowStateRaw);
-	const session = isRecord(flow) ? flow["session"] : undefined;
-	return typeof session === "string" ? session : "";
+	const path = isRecord(flow) ? flow["path"] : undefined;
+	const match = typeof path === "string" ? /^\/s\/([^/?#]+)/.exec(path) : null;
+	return match && match[1] ? decodeURIComponent(match[1]) : "";
 }
 
 /**
@@ -103,11 +107,10 @@ export function reconcileSession(
 }
 
 /**
- * Flow's stored panel state with `open` forced false and everything else (session,
- * width, fullscreen) kept, or null when there is nothing parseable to rewrite.
- * `FlowPanel.hide()` persists `session: store.sessionName.value`, which is still null
- * if it runs before flow's own async restore: rewriting from a snapshot read BEFORE
- * the hide keeps the session for the seed and for handing the panel back.
+ * The launcher's stored state with `open` forced false and everything else (path, width)
+ * kept, or null when there is nothing parseable to rewrite. Written from a snapshot read
+ * BEFORE the takeover closed the panel, so the chat it showed stays for the seed and for
+ * handing the panel back.
  */
 export function closedFlowState(flowStateRaw: string | null): string | null {
 	const flow = parseJson(flowStateRaw);
@@ -115,25 +118,17 @@ export function closedFlowState(flowStateRaw: string | null): string | null {
 	return JSON.stringify({ ...flow, open: false });
 }
 
-// -- flow's panel -------------------------------------------------------------
+// -- Frappe's Flow launcher --------------------------------------------------
 
-/** The slice of apps/flow's `frappe.flow.panel` (FlowPanel, frontend/src/main.js) the takeover calls. */
-export interface FlowPanelLike {
-	show(): void;
-	hide(): void;
+/** The slice of Frappe's `window.flow` (flow_launcher.bundle.js) the takeover calls and stands in for. */
+export interface FlowLauncherLike {
 	toggle(): void;
-	/** FlowPanel.visible: true while its slide-over is open. */
-	visible: boolean;
+	/** Opens the panel; with `session`, on that chat. */
+	open(options?: { session?: string }): void;
 }
 
-export function isFlowPanel(value: unknown): value is FlowPanelLike {
-	return (
-		isRecord(value) &&
-		typeof value["show"] === "function" &&
-		typeof value["hide"] === "function" &&
-		typeof value["toggle"] === "function" &&
-		typeof value["visible"] === "boolean"
-	);
+export function isFlowLauncher(value: unknown): value is FlowLauncherLike {
+	return isRecord(value) && typeof value["toggle"] === "function" && typeof value["open"] === "function";
 }
 
 // -- lazy bundle --------------------------------------------------------------
