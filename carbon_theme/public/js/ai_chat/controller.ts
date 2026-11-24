@@ -76,13 +76,15 @@ import type { Translate } from "./i18n.ts";
 /** The calls the controller makes, bound to one FlowEnv. Injected so tests script the server. */
 export interface FlowClient {
 	startRun(params: StartRunParams, signal?: AbortSignal): AsyncGenerator<FlowEvent>;
+	/** Answers the paused run of `session`; the built-in Flow resumes by session, not by run. */
 	resumeRun(
-		runName: string,
+		session: string,
 		answers: Readonly<Record<string, string>>,
 		signal?: AbortSignal,
 	): AsyncGenerator<FlowEvent>;
-	stopRun(runName: string): Promise<void>;
-	/** Fails any Running run on the session; resolves with how many it failed. */
+	/** Stops the session's active turn. */
+	stopRun(session: string): Promise<void>;
+	/** Ends whatever the session still has in flight; resolves with 1 when a turn was running, else 0. */
 	recoverSession(session: string): Promise<number>;
 	submitFeedback(runName: string, rating: "Up" | "Down" | "None", comment?: string): Promise<void>;
 	getSession(name: string): Promise<FlowSessionDoc>;
@@ -109,8 +111,8 @@ export function createFlowClient(env?: FlowEnv, uploadEnv?: UploadEnv): FlowClie
 	const uploads = (): UploadEnv => uploadEnv ?? defaultUploadEnv();
 	return {
 		startRun: (params, signal) => startRun(params, signal, env),
-		resumeRun: (runName, answers, signal) => resumeRun(runName, answers, signal, env),
-		stopRun: (runName) => stopRun(runName, env),
+		resumeRun: (session, answers, signal) => resumeRun(session, answers, signal, env),
+		stopRun: (session) => stopRun(session, env),
 		recoverSession: (session) => recoverSession(session, env),
 		submitFeedback: (runName, rating, comment) => submitFeedback(runName, rating, comment, env),
 		getSession: (name) => getSession(name, env),
@@ -244,7 +246,7 @@ export interface Controller {
 	answer(run: string, answers: Readonly<Record<string, string>>): Promise<void>;
 	/**
 	 * Abort the stream, mark the response stopped (`stopStream`), then tell the server:
-	 * `stopRun(run)`, or `recoverSession(session)` when `run_started` never arrived.
+	 * `stopRun(session)`, or `recoverSession(session)` when `run_started` never arrived.
 	 * A no-op unless a stream is live. Resolves after the server call settles.
 	 */
 	stop(): Promise<void>;
@@ -715,13 +717,14 @@ export function createController(deps: ControllerDeps): Controller {
 	async function answer(run: string, answers: Readonly<Record<string, string>>): Promise<void> {
 		if (disposed || isBusy(store.get().status)) return;
 		const paused = pausedResponse(store.get().messages, run);
-		if (paused === null) return;
+		const session = store.get().session;
+		if (paused === null || session === null) return;
 		// Locks the card at once, so it shows the decisions while the stream replays them.
 		const state = resumeStreamState(paused, answers);
 		store.upsert(paused.id, "streaming", state.response);
 		store.setStatus("submitted");
 		const turn = begin(paused.id, state);
-		await consume(turn, (signal) => client.resumeRun(run, answers, signal));
+		await consume(turn, (signal) => client.resumeRun(session, answers, signal), session);
 	}
 
 	/** Upload entries are the controller's; exactly one party deletes a File doc, whoever takes it first. */
@@ -871,8 +874,9 @@ export function createController(deps: ControllerDeps): Controller {
 		const session = turn.state.session ?? store.get().session;
 		stopping = (async () => {
 			try {
-				if (run !== null) await client.stopRun(run);
-				else if (session) await client.recoverSession(session);
+				if (!session) return;
+				if (run !== null) await client.stopRun(session);
+				else await client.recoverSession(session);
 			} catch (error) {
 				console.error(error);
 			}

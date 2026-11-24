@@ -34,7 +34,7 @@ A System Manager can set brand colours for light and dark mode and a header colo
 
 ### An AI assistant panel
 
-When Frappe's [flow](https://github.com/frappe/flow_client) app is installed, the header gets an AI assistant built from Carbon AI Chat, with conversation history, feedback and file attachments. See [Use the AI assistant](ai-assistant.md).
+With Frappe's built-in Flow (Frappe 16.60 and later), the header gets an AI assistant built from Carbon AI Chat, with conversation history, feedback and file attachments. See [Use the AI assistant](ai-assistant.md).
 
 ## Where to start
 
@@ -51,7 +51,7 @@ When Frappe's [flow](https://github.com/frappe/flow_client) app is installed, th
 - A bench of its own. The theme replaces Frappe's stylesheets for the whole bench, including sites that do not have the app installed: see [Limitations](troubleshooting.md#limitations).
 - Node and yarn on the machine that builds the assets, as for any Frappe app with a `package.json`.
 - ERPNext is not required. The app works with any Frappe apps and is tested with ERPNext and HRMS.
-- For the AI assistant only: the [flow](https://github.com/frappe/flow_client) app on the same site.
+- For the AI assistant only: Frappe 16.60 or later, whose built-in Flow it talks to.
 
 ## Source and changes
 

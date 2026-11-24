@@ -131,6 +131,21 @@ body.cf-has-shell {
 	z-index: $shell-z;
 }
 
+// When the Carbon assistant hands Flow back (its chat failed to load), Frappe's own panel
+// docks on the right and pushes the page with `html[data-flow-docked] { margin-right:
+// var(--flow-dock-width) }` (flow_launcher.bundle.js, PAGE_STYLE). The header is fixed,
+// so the margin does not reach it, and the panel would cover its right end.
+html[data-flow-docked] .cds--header {
+	inset-inline-end: var(--flow-dock-width);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	// the launcher's own slide (SLIDE in flow_launcher.bundle.js)
+	html[data-flow-sliding] .cds--header {
+		transition: inset-inline-end 200ms cubic-bezier(0.2, 0, 0, 1);
+	}
+}
+
 .cds--header-panel {
 	z-index: $shell-z;
 }
