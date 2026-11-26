@@ -47,7 +47,7 @@
 		"@carbon/charts": "1.27.27",
 		"@carbon/styles": "1.120.0",
 		"@tanstack/table-core": "9.3.1",
-		"@tanstack/virtual-core": "3.19.11"
+		"@tanstack/virtual-core": "3.19.13"
 	},
 	"devDependencies": {
 		"@carbon/icon-helpers": "^10.85.0",
